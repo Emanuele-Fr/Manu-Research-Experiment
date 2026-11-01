@@ -1,0 +1,741 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Roamly — Fluid Staggered Cards (935 WPM Prompt / 1850 WPM Model)</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&family=Source+Serif+4:ital,opsz,wght@0,8..60,400;0,8..60,600;1,8..60,400&display=swap" rel="stylesheet">
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            claude: {
+              bg: '#FAF9F5',
+              surface: '#F0EEE6',
+              tool: '#F4F3EE',
+              border: '#E5E3DC',
+              borderDark: '#D6D3C9',
+              text: '#141413',
+              muted: '#6B6A65',
+              brand: '#1B4D3E',
+              brandHover: '#143A2F',
+              brandLight: '#E8F0ED'
+            }
+          },
+          fontFamily: {
+            serif: ['"Source Serif 4"', 'Georgia', 'serif'],
+            sans: ['Inter', 'system-ui', 'sans-serif'],
+            mono: ['"JetBrains Mono"', 'monospace']
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    body { background-color: #E5E3DC; font-family: 'Inter', sans-serif; color: #141413; }
+    .claude-prose { font-family: 'Source Serif 4', Georgia, serif; font-size: 14.5px; line-height: 1.6; color: #141413; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .spinner { animation: spin 0.8s linear infinite; }
+    @keyframes pulseText { 0%, 100% { opacity: 0.45; } 50% { opacity: 1; } }
+    .thinking-shimmer { animation: pulseText 1.4s infinite ease-in-out; }
+    @keyframes sendPulse {
+      0%, 100% { box-shadow: 0 0 0 0 rgba(27, 77, 62, 0.45); }
+      50% { box-shadow: 0 0 0 6px rgba(27, 77, 62, 0); }
+    }
+    .send-ready-pulse { animation: sendPulse 1.6s infinite; }
+    .stream-cursor::after {
+      content: '▍';
+      display: inline-block;
+      margin-left: 2px;
+      color: #1B4D3E;
+      animation: pulseText 0.5s infinite;
+    }
+
+    /* Claude-style spring/fluid staggered card reveal */
+    @keyframes fluidCardReveal {
+      0% { opacity: 0; transform: translateY(8px) scale(0.985); }
+      100% { opacity: 1; transform: translateY(0) scale(1); }
+    }
+    .card-reveal-1 {
+      animation: fluidCardReveal 0.38s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+    }
+    .card-reveal-2 {
+      animation: fluidCardReveal 0.38s cubic-bezier(0.16, 1, 0.3, 1) 0.075s forwards;
+      opacity: 0; /* Hold until delay */
+    }
+
+    ::-webkit-scrollbar { width: 6px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: #D6D3C9; border-radius: 3px; }
+  </style>
+</head>
+<body class="flex flex-col items-center justify-center min-h-screen p-3">
+
+  <!-- JSFiddle Switcher Bar -->
+  <div class="w-full max-w-[900px] mb-2 flex items-center justify-between bg-[#141413] text-[#FAF9F5] text-xs px-3.5 py-2 rounded-lg">
+    <div class="flex items-center space-x-2">
+      <span class="font-semibold text-emerald-400">Mode Switcher:</span>
+      <button onclick="initApp('assist')" id="btn-mode-assist" class="px-3 py-1 rounded bg-[#1B4D3E] text-white font-medium transition">?mode=assist</button>
+      <button onclick="initApp('go')" id="btn-mode-go" class="px-3 py-1 rounded bg-neutral-800 hover:bg-neutral-700 text-neutral-300 font-medium transition">?mode=go</button>
+    </div>
+    <span class="text-[11px] font-mono text-neutral-400">Pacing: 935 WPM Input • 1850 WPM Model • Fluid Cards</span>
+  </div>
+
+  <!-- Main Experiment Container (900x620 Invariant) -->
+  <div class="w-full max-w-[900px] h-[620px] bg-claude-bg rounded-xl shadow-xl border border-claude-border grid grid-cols-12 overflow-hidden">
+    
+    <!-- LEFT PANEL: Interaction Workspace (7 cols) -->
+    <div class="col-span-7 flex flex-col border-r border-claude-border h-full overflow-hidden bg-claude-bg">
+      
+      <!-- Header -->
+      <div class="px-5 py-3 border-b border-claude-border flex items-center justify-between bg-claude-bg">
+        <div class="flex items-center space-x-2.5">
+          <!-- Roamly Möbius Vector Icon (Populated via JS with unique gradient scope) -->
+          <div id="ai-header-icon" class="w-7 h-7 rounded-lg bg-claude-brandLight border border-claude-brand/20 flex items-center justify-center shadow-sm"></div>
+          <span id="header-title" class="font-serif font-semibold text-claude-text text-[15px] tracking-tight">Roamly 3.7 Assist</span>
+          <span id="header-badge" class="text-[11px] px-2 py-0.5 rounded-md bg-claude-brandLight text-claude-brand font-medium border border-claude-brand/20">Conversational</span>
+        </div>
+        <span id="header-context" class="text-[11px] font-mono text-claude-muted">New Session</span>
+      </div>
+
+      <!-- Main Stream / Content Area -->
+      <div id="workspace" class="flex-1 px-5 py-4 overflow-y-auto space-y-4"></div>
+
+      <!-- Bottom Composer with Auto-Growing Multi-Line Textarea -->
+      <div id="composer-container" class="px-4 pb-3.5 pt-2 bg-claude-bg">
+        <div id="chip-bar" class="mb-2 flex items-center"></div>
+        <div class="bg-white border border-claude-borderDark rounded-2xl p-2.5 shadow-sm flex items-end justify-between transition">
+          <div class="flex items-start space-x-2.5 flex-1 pr-2">
+            <svg class="w-4 h-4 text-claude-muted shrink-0 ml-1 mt-1" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13"></path>
+            </svg>
+            <textarea
+              id="chat-input"
+              rows="1"
+              readonly
+              placeholder="Click the prompt chip above to type your message..."
+              class="w-full text-xs text-claude-text placeholder-claude-muted bg-transparent focus:outline-none cursor-default font-sans resize-none overflow-hidden leading-relaxed"
+            ></textarea>
+          </div>
+          <button
+            id="btn-send"
+            disabled
+            onclick="submitPreparedPrompt()"
+            class="w-7 h-7 rounded-lg bg-claude-borderDark text-white flex items-center justify-center transition cursor-not-allowed shrink-0"
+          >
+            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M5 10l7-7m0 0l7 7m-7-7v18"></path>
+            </svg>
+          </button>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- RIGHT PANEL: Live Itinerary Summary & Budget Tracker (5 cols) -->
+    <div class="col-span-5 flex flex-col justify-between h-full bg-white p-5">
+      <div class="flex-1 flex flex-col">
+        <div class="flex items-center justify-between pb-3 mb-4 border-b border-claude-border">
+          <div class="flex items-center space-x-2">
+            <span class="w-2 h-2 rounded-full bg-claude-brand"></span>
+            <h2 class="font-serif font-semibold text-claude-text text-[15px]">Live Itinerary Summary</h2>
+          </div>
+          <span id="artifact-dest" class="text-[11px] font-mono text-claude-muted bg-claude-surface px-2 py-0.5 rounded">No trip active</span>
+        </div>
+
+        <!-- ZERO-STATE PLACEHOLDER -->
+        <div id="itinerary-empty" class="flex-1 flex flex-col items-center justify-center text-center px-5 border border-dashed border-claude-borderDark rounded-xl bg-claude-bg/40 my-2">
+          <div class="w-8 h-8 rounded-full bg-claude-surface text-claude-muted flex items-center justify-center text-xs font-mono mb-2">—</div>
+          <p class="text-xs font-medium text-claude-text">No Trip Parameters Set</p>
+          <p class="text-[11px] text-claude-muted mt-1 leading-relaxed">
+            Send your initial travel request in the chat to initialize destination, budget tracking, and itinerary slots.
+          </p>
+        </div>
+
+        <!-- ACTIVE ITINERARY TRACKER -->
+        <div id="itinerary-active" class="hidden space-y-4">
+          <div class="bg-claude-bg p-3.5 rounded-xl border border-claude-border">
+            <div class="flex justify-between items-baseline mb-1.5">
+              <span class="text-xs font-medium text-claude-muted">Allocated Trip Budget</span>
+              <div>
+                <span id="budget-current" class="text-lg font-bold text-claude-text font-sans">€0</span>
+                <span class="text-xs text-claude-muted"> / €900 cap</span>
+              </div>
+            </div>
+            <div class="w-full h-2 bg-claude-surface rounded-full overflow-hidden border border-claude-border">
+              <div id="budget-bar" class="h-full bg-claude-brand transition-all duration-500" style="width: 0%"></div>
+            </div>
+          </div>
+
+          <div class="space-y-3">
+            <div id="slot-hotel" class="p-3.5 rounded-xl border border-dashed border-claude-borderDark bg-claude-bg/50 text-xs text-claude-muted flex items-center justify-between">
+              <span>1. Accommodation (5 Nights)</span>
+              <span class="font-mono text-[11px]">Awaiting...</span>
+            </div>
+            <div id="slot-flight" class="p-3.5 rounded-xl border border-dashed border-claude-borderDark bg-claude-bg/50 text-xs text-claude-muted flex items-center justify-between">
+              <span>2. Roundtrip Flights</span>
+              <span class="font-mono text-[11px]">Awaiting...</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Final Approval Button -->
+      <div id="itinerary-footer" class="hidden pt-4 border-t border-claude-border mt-4">
+        <div id="confirm-area">
+          <button id="btn-confirm" disabled onclick="confirmItinerary()" class="w-full py-2.5 px-4 rounded-xl font-semibold text-xs text-white bg-claude-borderDark cursor-not-allowed transition">
+            Review and Confirm Itinerary
+          </button>
+          <p class="text-[11px] text-claude-muted text-center mt-1.5">Unlocks when itinerary steps are complete</p>
+        </div>
+        <div id="confirmed-banner" class="hidden p-3 rounded-xl bg-claude-brandLight border border-claude-brand/30 text-claude-brand text-xs font-semibold text-center">
+          ✓ Itinerary Confirmed (€840) — Please click Next below to continue the survey.
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <script>
+    const urlParams = new URLSearchParams(window.location.search);
+    let currentMode = urlParams.get('mode') === 'go' ? 'go' : 'assist';
+    let timers = [];
+    let animationFrames = [];
+    let pendingStepAction = null;
+
+    // Strict Experimental Timing Invariants
+    const PROMPT_CHAR_INTERVAL_MS = 12.83; // Exactly 935 WPM (77.92 chars/sec at 5 chars/word)
+    const MODEL_BASE_INTERVAL_MS = 32.43;  // Exactly 1850 WPM (30.83 words/sec)
+
+    // Scoped Inline SVG Generator (Prevents display:none gradient bugs and duplicate ID collisions)
+    function getRoamlyLogoSVG(sizeClasses, uid) {
+      return `
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="95 40 870 495" class="${sizeClasses}" fill="none">
+          <defs>
+            <linearGradient id="mobius-front-band-${uid}" x1="82%" y1="12%" x2="18%" y2="88%">
+              <stop offset="0%" stop-color="#4A856C" />
+              <stop offset="45%" stop-color="#28604B" />
+              <stop offset="85%" stop-color="#1B4D3E" />
+              <stop offset="100%" stop-color="#12382B" />
+            </linearGradient>
+            <linearGradient id="mobius-left-upper-${uid}" x1="15%" y1="20%" x2="55%" y2="55%">
+              <stop offset="0%" stop-color="#3B725B" />
+              <stop offset="35%" stop-color="#1B4D3E" />
+              <stop offset="75%" stop-color="#0F3528" />
+              <stop offset="100%" stop-color="#09241B" />
+            </linearGradient>
+            <linearGradient id="mobius-left-inner-shadow-${uid}" x1="25%" y1="45%" x2="52%" y2="38%">
+              <stop offset="0%" stop-color="#154233" />
+              <stop offset="60%" stop-color="#0B291F" />
+              <stop offset="100%" stop-color="#061A13" />
+            </linearGradient>
+            <linearGradient id="mobius-left-bevel-${uid}" x1="10%" y1="30%" x2="45%" y2="75%">
+              <stop offset="0%" stop-color="#528E75" />
+              <stop offset="50%" stop-color="#76AA94" />
+              <stop offset="100%" stop-color="#29604C" />
+            </linearGradient>
+            <linearGradient id="mobius-right-lower-${uid}" x1="48%" y1="52%" x2="90%" y2="75%">
+              <stop offset="0%" stop-color="#082219" />
+              <stop offset="35%" stop-color="#164434" />
+              <stop offset="75%" stop-color="#255B47" />
+              <stop offset="100%" stop-color="#0D3125" />
+            </linearGradient>
+            <linearGradient id="mobius-right-inner-${uid}" x1="75%" y1="22%" x2="88%" y2="82%">
+              <stop offset="0%" stop-color="#0D3125" />
+              <stop offset="50%" stop-color="#1B4D3E" />
+              <stop offset="100%" stop-color="#072017" />
+            </linearGradient>
+            <linearGradient id="mobius-right-bevel-${uid}" x1="55%" y1="28%" x2="92%" y2="45%">
+              <stop offset="0%" stop-color="#39705A" />
+              <stop offset="50%" stop-color="#5E977F" />
+              <stop offset="100%" stop-color="#1B4D3E" />
+            </linearGradient>
+          </defs>
+          <path d="M 285 262 C 365 232, 465 245, 535 280 L 470 345 C 405 315, 330 305, 255 322 Z" fill="url(#mobius-left-inner-shadow-${uid})" />
+          <path d="M 118 335 C 122 195, 235 92, 375 112 C 455 124, 520 175, 585 235 L 512 308 C 452 252, 392 205, 322 198 C 235 190, 185 250, 198 332 C 210 402, 285 435, 365 415 L 335 495 C 215 512, 114 445, 118 335 Z" fill="url(#mobius-left-upper-${uid})" />
+          <path d="M 468 312 C 538 382, 615 478, 725 492 C 855 508, 945 405, 942 268 C 940 175, 885 102, 805 78 L 832 168 C 875 195, 888 258, 868 325 C 845 398, 778 422, 708 405 C 638 388, 582 322, 525 258 Z" fill="url(#mobius-right-lower-${uid})" />
+          <path d="M 765 152 C 855 152, 915 225, 902 335 C 892 415, 835 475, 755 488 C 865 475, 942 385, 942 268 C 942 155, 865 75, 755 68 Z" fill="url(#mobius-right-inner-${uid})" />
+          <path d="M 118 335 C 122 475, 238 548, 368 512 C 458 486, 525 405, 602 322 C 678 240, 748 162, 838 162 C 895 162, 932 205, 940 258 C 945 142, 862 55, 745 58 C 638 61, 558 142, 478 228 C 398 314, 328 398, 235 392 C 168 388, 132 332, 145 255 C 125 280, 117 308, 118 335 Z" fill="url(#mobius-front-band-${uid})" />
+          <path d="M 145 255 C 132 332, 168 388, 235 392 C 328 398, 398 314, 478 228 L 492 238 C 408 328, 334 412, 232 406 C 158 401, 118 338, 135 248 Z" fill="url(#mobius-left-bevel-${uid})" />
+          <path d="M 602 322 C 678 240, 748 162, 838 162 C 895 162, 932 205, 940 258 C 930 195, 888 148, 832 148 C 740 148, 668 228, 590 312 Z" fill="url(#mobius-right-bevel-${uid})" />
+        </svg>
+      `;
+    }
+
+    // Populate persistent header logo once
+    document.getElementById('ai-header-icon').innerHTML = getRoamlyLogoSVG('w-5 h-5', 'header');
+
+    function clearTimers() {
+      timers.forEach(t => { clearTimeout(t); clearInterval(t); });
+      animationFrames.forEach(af => cancelAnimationFrame(af));
+      timers = [];
+      animationFrames = [];
+    }
+
+    function initApp(mode) {
+      clearTimers();
+      currentMode = mode;
+      pendingStepAction = null;
+
+      // Switcher UI
+      document.getElementById('btn-mode-assist').className = mode === 'assist'
+        ? 'px-3 py-1 rounded bg-[#1B4D3E] text-white font-medium transition'
+        : 'px-3 py-1 rounded bg-neutral-800 hover:bg-neutral-700 text-neutral-300 font-medium transition';
+      document.getElementById('btn-mode-go').className = mode === 'go'
+        ? 'px-3 py-1 rounded bg-[#1B4D3E] text-white font-medium transition'
+        : 'px-3 py-1 rounded bg-neutral-800 hover:bg-neutral-700 text-neutral-300 font-medium transition';
+
+      // Header
+      document.getElementById('header-title').textContent = mode === 'assist' ? 'Roamly 3.7 Assist' : 'Roamly 3.7 Go';
+      document.getElementById('header-badge').textContent = mode === 'assist' ? 'Conversational' : 'Autonomous Agent';
+      document.getElementById('header-context').textContent = 'New Session';
+      document.getElementById('artifact-dest').textContent = 'No trip active';
+
+      // Hide Active Itinerary & Show Empty State
+      document.getElementById('itinerary-empty').classList.remove('hidden');
+      document.getElementById('itinerary-active').classList.add('hidden');
+      document.getElementById('itinerary-footer').classList.add('hidden');
+
+      updateBudget(0);
+      resetSlot('slot-hotel', '1. Accommodation (5 Nights)');
+      resetSlot('slot-flight', '2. Roundtrip Flights');
+
+      const btnConfirm = document.getElementById('btn-confirm');
+      btnConfirm.disabled = true;
+      btnConfirm.className = "w-full py-2.5 px-4 rounded-xl font-semibold text-xs text-white bg-claude-borderDark cursor-not-allowed transition";
+      document.getElementById('confirm-area').classList.remove('hidden');
+      document.getElementById('confirmed-banner').classList.add('hidden');
+
+      const ws = document.getElementById('workspace');
+      ws.innerHTML = `
+        <div id="empty-greeting" class="h-full flex flex-col items-center justify-center text-center px-6 py-12">
+          <div class="w-12 h-12 rounded-xl bg-claude-brandLight flex items-center justify-center mb-3 border border-claude-brand/20 shadow-sm">
+            ${getRoamlyLogoSVG('w-8 h-8', 'hero')}
+          </div>
+          <h3 class="font-serif font-semibold text-lg text-claude-text">What can I help you plan today?</h3>
+          <p class="text-xs text-claude-muted mt-1 max-w-xs">Share your destination, trip length, and budget to get started.</p>
+        </div>
+      `;
+
+      resetComposer();
+      if (mode === 'assist') {
+        renderAssistChip(1);
+      } else {
+        renderGoChip();
+      }
+    }
+
+    function resetSlot(id, label) {
+      const el = document.getElementById(id);
+      el.className = "p-3.5 rounded-xl border border-dashed border-claude-borderDark bg-claude-bg/50 text-xs text-claude-muted flex items-center justify-between";
+      el.innerHTML = `<span>${label}</span><span class="font-mono text-[11px]">Awaiting...</span>`;
+    }
+
+    function activateItineraryPanel() {
+      document.getElementById('header-context').textContent = 'Lisbon • 5d • Max €900';
+      document.getElementById('artifact-dest').textContent = 'Lisbon • 5 Days';
+      document.getElementById('itinerary-empty').classList.add('hidden');
+      document.getElementById('itinerary-active').classList.remove('hidden');
+      document.getElementById('itinerary-footer').classList.remove('hidden');
+    }
+
+    function updateBudget(amount) {
+      document.getElementById('budget-current').textContent = `€${amount}`;
+      document.getElementById('budget-bar').style.width = `${Math.min(100, Math.round((amount / 900) * 100))}%`;
+    }
+
+    function lockHotelSummary() {
+      const el = document.getElementById('slot-hotel');
+      el.className = "p-3.5 rounded-xl border border-claude-brand/30 bg-claude-brandLight/50 text-xs flex items-center justify-between transition";
+      el.innerHTML = `
+        <div>
+          <p class="font-semibold text-claude-text">Hotel Avenida Palace</p>
+          <p class="text-[11px] text-claude-muted">Baixa Central • <strong>4.8★</strong> • 5 Nights</p>
+        </div>
+        <span class="font-bold text-claude-brand font-sans text-sm">€450</span>
+      `;
+      updateBudget(450);
+    }
+
+    function lockFlightSummary() {
+      const el = document.getElementById('slot-flight');
+      el.className = "p-3.5 rounded-xl border border-claude-brand/30 bg-claude-brandLight/50 text-xs flex items-center justify-between transition";
+      el.innerHTML = `
+        <div>
+          <p class="font-semibold text-claude-text">TAP Air Portugal (TP 452)</p>
+          <p class="text-[11px] text-claude-muted"><strong>Direct Morning</strong> • Roundtrip</p>
+        </div>
+        <span class="font-bold text-claude-brand font-sans text-sm">€390</span>
+      `;
+      updateBudget(840);
+
+      const btnConfirm = document.getElementById('btn-confirm');
+      btnConfirm.disabled = false;
+      btnConfirm.className = "w-full py-2.5 px-4 rounded-xl font-semibold text-xs text-white bg-claude-brand hover:bg-claude-brandHover cursor-pointer shadow-sm transition";
+    }
+
+    /* ---------------- SHARED FLUID MODEL STREAMING ENGINE (1850 WPM) ---------------- */
+    function formatPartialMarkdown(raw) {
+      let formatted = raw.replace(/\*\*(.*?)\*\*/g, '<strong class="font-semibold text-claude-text">$1</strong>');
+      const parts = formatted.split('**');
+      if (parts.length === 2) {
+        return parts[0] + '<strong class="font-semibold text-claude-text">' + parts[1] + '</strong>';
+      }
+      return formatted;
+    }
+
+    function streamAssistantOutput(markdownText, extraHTML = '', onComplete = null) {
+      const ws = document.getElementById('workspace');
+      const msgId = 'msg-' + Date.now();
+      ws.insertAdjacentHTML('beforeend', `
+        <div id="${msgId}" class="space-y-2.5">
+          <div id="${msgId}-prose" class="claude-prose stream-cursor"></div>
+          <div id="${msgId}-extra" class="hidden"></div>
+        </div>
+      `);
+
+      const proseEl = document.getElementById(`${msgId}-prose`);
+      const extraEl = document.getElementById(`${msgId}-extra`);
+
+      const tokens = markdownText.split(/(?=\s)/);
+      let idx = 0;
+      let accumulated = '';
+      let lastTime = performance.now();
+      let delayUntilNext = MODEL_BASE_INTERVAL_MS;
+
+      function streamFrame(now) {
+        const elapsed = now - lastTime;
+
+        if (elapsed >= delayUntilNext) {
+          lastTime = now;
+          const currentToken = tokens[idx];
+          accumulated += currentToken;
+          proseEl.innerHTML = formatPartialMarkdown(accumulated);
+          ws.scrollTop = ws.scrollHeight;
+          idx++;
+
+          if (currentToken.endsWith('.') || currentToken.endsWith('!') || currentToken.endsWith(':')) {
+            delayUntilNext = MODEL_BASE_INTERVAL_MS * 2.0;
+          } else if (currentToken.endsWith(',')) {
+            delayUntilNext = MODEL_BASE_INTERVAL_MS * 1.4;
+          } else if (currentToken.length <= 3) {
+            delayUntilNext = MODEL_BASE_INTERVAL_MS * 0.7;
+          } else {
+            delayUntilNext = MODEL_BASE_INTERVAL_MS;
+          }
+
+          if (idx >= tokens.length) {
+            proseEl.classList.remove('stream-cursor');
+            if (extraHTML) {
+              extraEl.innerHTML = extraHTML;
+              extraEl.classList.remove('hidden');
+              ws.scrollTop = ws.scrollHeight;
+            }
+            if (onComplete) onComplete();
+            return;
+          }
+        }
+        animationFrames.push(requestAnimationFrame(streamFrame));
+      }
+
+      animationFrames.push(requestAnimationFrame(streamFrame));
+    }
+
+    /* ---------------- SHARED PROMPT TYPING (935 WPM) ---------------- */
+    function autoResizeTextarea(el) {
+      el.style.height = 'auto';
+      el.style.height = el.scrollHeight + 'px';
+    }
+
+    function resetComposer() {
+      const input = document.getElementById('chat-input');
+      const sendBtn = document.getElementById('btn-send');
+      input.value = '';
+      input.style.height = 'auto';
+      sendBtn.disabled = true;
+      sendBtn.className = "w-7 h-7 rounded-lg bg-claude-borderDark text-white flex items-center justify-center transition cursor-not-allowed shrink-0";
+    }
+
+    function autoTypePrompt(promptText, stepCallback) {
+      document.getElementById('chip-bar').innerHTML = `<span class="text-[11px] text-claude-muted">Click the highlighted green arrow to send →</span>`;
+      const input = document.getElementById('chat-input');
+      const sendBtn = document.getElementById('btn-send');
+      input.value = '';
+      input.style.height = 'auto';
+      sendBtn.disabled = true;
+      pendingStepAction = null;
+
+      let i = 0;
+      const interval = setInterval(() => {
+        input.value += promptText.charAt(i);
+        autoResizeTextarea(input);
+        i++;
+        if (i >= promptText.length) {
+          clearInterval(interval);
+          pendingStepAction = stepCallback;
+          sendBtn.disabled = false;
+          sendBtn.className = "w-7 h-7 rounded-lg bg-claude-brand hover:bg-claude-brandHover text-white flex items-center justify-center transition cursor-pointer shrink-0 send-ready-pulse";
+        }
+      }, PROMPT_CHAR_INTERVAL_MS); // Calibrated 935 WPM
+      timers.push(interval);
+    }
+
+    function submitPreparedPrompt() {
+      if (!pendingStepAction) return;
+      const fn = pendingStepAction;
+      const text = document.getElementById('chat-input').value;
+      resetComposer();
+      document.getElementById('chip-bar').innerHTML = '';
+      appendUserBubble(text);
+      fn();
+    }
+
+    function appendUserBubble(text) {
+      document.getElementById('empty-greeting')?.remove();
+      const ws = document.getElementById('workspace');
+      ws.insertAdjacentHTML('beforeend', `
+        <div class="flex justify-end">
+          <div class="bg-claude-surface border border-claude-border text-claude-text text-xs px-4 py-2.5 rounded-2xl max-w-[85%] font-sans leading-relaxed">
+            ${text}
+          </div>
+        </div>
+      `);
+      ws.scrollTop = ws.scrollHeight;
+    }
+
+    function showEphemeralThinking(label) {
+      const ws = document.getElementById('workspace');
+      const id = 'think-' + Date.now();
+      ws.insertAdjacentHTML('beforeend', `
+        <div id="${id}" class="flex items-center space-x-2 text-xs text-claude-muted font-serif italic py-1 thinking-shimmer">
+          <span class="text-claude-brand not-italic">✦</span>
+          <span id="${id}-txt">${label}</span>
+        </div>
+      `);
+      ws.scrollTop = ws.scrollHeight;
+      return id;
+    }
+
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' && pendingStepAction) {
+        e.preventDefault();
+        submitPreparedPrompt();
+      }
+    });
+
+    /* ---------------- ASSIST MODE WORKFLOW (STAGGERED FLUID CARDS) ---------------- */
+    function renderAssistChip(step) {
+      const chipBar = document.getElementById('chip-bar');
+      if (step === 1) {
+        chipBar.innerHTML = `
+          <button onclick="autoTypePrompt(&quot;Hey! I'm planning a 5-day trip to Lisbon and my max budget is €900. Could you help me look for a central hotel first?&quot;, executeAssistStep1)" class="text-xs px-3 py-1.5 rounded-full bg-claude-brandLight text-claude-brand border border-claude-brand/30 hover:bg-claude-brand hover:text-white font-medium transition">
+            ✦ 1. Ask to plan 5-day Lisbon trip (€900 budget) & search hotels
+          </button>
+        `;
+      } else if (step === 2) {
+        chipBar.innerHTML = `
+          <button onclick="autoTypePrompt(&quot;Great, I've selected the hotel. Could you look for roundtrip flights to Lisbon now?&quot;, executeAssistStep2)" class="text-xs px-3 py-1.5 rounded-full bg-claude-brandLight text-claude-brand border border-claude-brand/30 hover:bg-claude-brand hover:text-white font-medium transition">
+            ✦ 2. Ask to search roundtrip flights to Lisbon
+          </button>
+        `;
+      } else {
+        chipBar.innerHTML = `<span class="text-[11px] text-claude-muted italic">All demo steps complete — review and confirm on the right panel.</span>`;
+      }
+    }
+
+    function executeAssistStep1() {
+      activateItineraryPanel();
+      const thinkId = showEphemeralThinking('Setting up 5-day Lisbon parameters (€900 budget cap)...');
+
+      timers.push(setTimeout(() => {
+        const txtEl = document.getElementById(`${thinkId}-txt`);
+        if (txtEl) txtEl.textContent = 'Searching live central hotel availability in Lisbon...';
+      }, 1100));
+
+      timers.push(setTimeout(() => {
+        document.getElementById(thinkId)?.remove();
+        streamAssistantOutput(
+          `I'd love to help with your **5-day trip to Lisbon**! I've set up your itinerary tracker with your **€900 maximum budget**. Here are two central accommodations priced at **€450 total (€90/night)**. Since **Alfama Guest House is sold out**, **Hotel Avenida Palace (4.8★, Baixa Central)** is your best available option:`,
+          `
+          <div class="grid grid-cols-2 gap-2.5 pt-1 font-sans">
+            <!-- Staggered Card 1 -->
+            <div class="card-reveal-1 border border-claude-borderDark rounded-xl p-3 bg-white shadow-sm flex flex-col justify-between">
+              <div>
+                <div class="flex justify-between items-start gap-1">
+                  <span class="font-bold text-claude-text text-xs">Hotel Avenida Palace</span>
+                  <span class="text-[10px] bg-claude-brandLight text-claude-brand px-1.5 py-0.5 rounded font-semibold">4.8★</span>
+                </div>
+                <p class="text-[11px] text-claude-muted mt-1"><strong>Baixa Central</strong> • 5 Nights • <strong>€450 total</strong></p>
+              </div>
+              <button id="btn-sel-hotel" onclick="selectHotelAssist()" class="mt-2.5 w-full py-1.5 bg-claude-brand hover:bg-claude-brandHover text-white rounded-lg text-[11px] font-medium transition">Select Hotel (€450)</button>
+            </div>
+            <!-- Staggered Card 2 -->
+            <div class="card-reveal-2 border border-claude-border rounded-xl p-3 bg-claude-surface/60 opacity-65 flex flex-col justify-between">
+              <div>
+                <div class="flex justify-between items-start gap-1">
+                  <span class="font-semibold text-claude-muted text-xs">Alfama Guest House</span>
+                  <span class="text-[10px] bg-rose-100 text-rose-800 px-1.5 py-0.5 rounded font-semibold">Sold Out</span>
+                </div>
+                <p class="text-[11px] text-claude-muted mt-1">Alfama • 5 Nights • <strong>€450 total</strong></p>
+              </div>
+              <button disabled class="mt-2.5 w-full py-1.5 bg-claude-borderDark text-claude-muted rounded-lg text-[11px] font-medium cursor-not-allowed">Unavailable</button>
+            </div>
+          </div>
+          `
+        );
+      }, 2400));
+    }
+
+    function selectHotelAssist() {
+      const btn = document.getElementById('btn-sel-hotel');
+      btn.disabled = true;
+      btn.textContent = "✓ Selected (€450)";
+      btn.className = "mt-2.5 w-full py-1.5 bg-claude-brand/80 text-white rounded-lg text-[11px] font-medium cursor-default";
+      lockHotelSummary();
+      renderAssistChip(2);
+    }
+
+    function executeAssistStep2() {
+      const thinkId = showEphemeralThinking('Searching roundtrip flights to Lisbon...');
+      timers.push(setTimeout(() => {
+        document.getElementById(thinkId)?.remove();
+        streamAssistantOutput(
+          `Here are two roundtrip flights at **€390**. Because the **late-night layover option is sold out**, you can select the **TAP Air Portugal Direct Morning Flight (€390)** below, which brings your itinerary to **€840 / €900**:`,
+          `
+          <div class="grid grid-cols-2 gap-2.5 pt-1 font-sans">
+            <!-- Staggered Card 1 -->
+            <div class="card-reveal-1 border border-claude-borderDark rounded-xl p-3 bg-white shadow-sm flex flex-col justify-between">
+              <div>
+                <div class="flex justify-between items-start gap-1">
+                  <span class="font-bold text-claude-text text-xs">TAP Air Portugal</span>
+                  <span class="text-[10px] bg-claude-brandLight text-claude-brand px-1.5 py-0.5 rounded font-semibold">Direct</span>
+                </div>
+                <p class="text-[11px] text-claude-muted mt-1"><strong>08:30 Morning</strong> • Roundtrip • <strong>€390</strong></p>
+              </div>
+              <button id="btn-sel-flight" onclick="selectFlightAssist()" class="mt-2.5 w-full py-1.5 bg-claude-brand hover:bg-claude-brandHover text-white rounded-lg text-[11px] font-medium transition">Select Flight (€390)</button>
+            </div>
+            <!-- Staggered Card 2 -->
+            <div class="card-reveal-2 border border-claude-border rounded-xl p-3 bg-claude-surface/60 opacity-65 flex flex-col justify-between">
+              <div>
+                <div class="flex justify-between items-start gap-1">
+                  <span class="font-semibold text-claude-muted text-xs">Late Night Layover</span>
+                  <span class="text-[10px] bg-rose-100 text-rose-800 px-1.5 py-0.5 rounded font-semibold">Sold Out</span>
+                </div>
+                <p class="text-[11px] text-claude-muted mt-1">1 Stop • Roundtrip • <strong>€390</strong></p>
+              </div>
+              <button disabled class="mt-2.5 w-full py-1.5 bg-claude-borderDark text-claude-muted rounded-lg text-[11px] font-medium cursor-not-allowed">Unavailable</button>
+            </div>
+          </div>
+          `
+        );
+      }, 1600));
+    }
+
+    function selectFlightAssist() {
+      const btn = document.getElementById('btn-sel-flight');
+      btn.disabled = true;
+      btn.textContent = "✓ Selected (€390)";
+      btn.className = "mt-2.5 w-full py-1.5 bg-claude-brand/80 text-white rounded-lg text-[11px] font-medium cursor-default";
+      lockFlightSummary();
+      renderAssistChip(3);
+    }
+
+    /* ---------------- GO MODE WORKFLOW ---------------- */
+    function renderGoChip() {
+      const chipBar = document.getElementById('chip-bar');
+      chipBar.innerHTML = `
+        <button onclick="autoTypePrompt(&quot;Hey! I'm planning a 5-day trip to Lisbon with a €900 max budget. Could you take care of finding a central hotel and direct morning flights for me?&quot;, executeGoWorkflow)" class="text-xs px-3 py-1.5 rounded-full bg-claude-brandLight text-claude-brand border border-claude-brand/30 hover:bg-claude-brand hover:text-white font-medium transition">
+          ✦ Delegate full 5-day Lisbon trip (€900 budget) to Agent
+        </button>
+      `;
+    }
+
+    function executeGoWorkflow() {
+      const ws = document.getElementById('workspace');
+      document.getElementById('chip-bar').innerHTML = `<span class="text-[11px] text-claude-muted italic">Autonomous agent running...</span>`;
+
+      ws.insertAdjacentHTML('beforeend', `
+        <div id="go-trace-box" class="bg-claude-tool border border-claude-borderDark rounded-xl p-3.5 space-y-2 font-mono text-[11px]">
+          <div class="text-[10px] uppercase tracking-wider text-claude-brand font-semibold pb-1 border-b border-claude-border">Autonomous Agent Execution Log</div>
+          <div id="go-rows" class="space-y-2 pt-0.5"></div>
+        </div>
+      `);
+
+      const rowsContainer = document.getElementById('go-rows');
+      const tasks = [
+        {
+          running: "Initializing 5-day Lisbon itinerary & €900 budget cap...",
+          done: "Initialized Lisbon trip tracker (€900 cap)",
+          cb: activateItineraryPanel
+        },
+        {
+          running: "Scanning central hotels (€450) & filtering out sold-out properties...",
+          done: "Selected Hotel Avenida Palace (4.8★, Central — €450)",
+          cb: lockHotelSummary
+        },
+        {
+          running: "Scanning roundtrip flights (€390) & filtering for direct morning routing...",
+          done: "Selected TAP Air Portugal Direct Morning Flight (€390)",
+          cb: lockFlightSummary
+        }
+      ];
+
+      tasks.forEach((t, i) => {
+        timers.push(setTimeout(() => {
+          rowsContainer.insertAdjacentHTML('beforeend', `
+            <div class="flex items-center space-x-2 text-claude-muted">
+              <div id="go-spin-${i}" class="w-3 h-3 border-2 border-claude-brand border-t-transparent rounded-full spinner shrink-0"></div>
+              <span id="go-txt-${i}">${t.running}</span>
+            </div>
+          `);
+          ws.scrollTop = ws.scrollHeight;
+        }, i * 1700));
+
+        timers.push(setTimeout(() => {
+          const spin = document.getElementById(`go-spin-${i}`);
+          const txt = document.getElementById(`go-txt-${i}`);
+          if (spin && txt) {
+            spin.className = "w-3.5 h-3.5 rounded-full bg-claude-brand text-white flex items-center justify-center text-[9px] font-bold shrink-0";
+            spin.innerHTML = "✓";
+            txt.textContent = t.done;
+            txt.className = "text-claude-text font-medium";
+          }
+          if (t.cb) t.cb();
+          ws.scrollTop = ws.scrollHeight;
+
+          if (i === tasks.length - 1) {
+            timers.push(setTimeout(() => {
+              document.getElementById('go-trace-box')?.remove();
+              streamAssistantOutput(
+                `I've taken care of your **5-day Lisbon trip** and automatically locked in the best available options within your **€900 budget** — reserving **Hotel Avenida Palace (4.8★, Baixa Central)** for **€450** after filtering out sold-out properties, and pairing it with the **TAP Air Portugal Direct Morning Flight** for **€390** to avoid late-night layovers.`,
+                `
+                <div class="bg-white border border-claude-border rounded-xl p-3 mt-1 space-y-1.5 text-xs font-sans card-reveal-1">
+                  <div class="flex justify-between"><span>• <strong>Hotel Avenida Palace</strong> (5 Nights, 4.8★)</span><span class="font-bold text-claude-brand">€450</span></div>
+                  <div class="flex justify-between"><span>• <strong>TAP Air Portugal Direct</strong> (Roundtrip Morning)</span><span class="font-bold text-claude-brand">€390</span></div>
+                </div>
+                <p class="mt-2 text-xs text-claude-muted font-sans">Your current total is <strong>€840 / €900</strong>. Everything is loaded into your live summary on the right whenever you're ready to review and confirm.</p>
+                `,
+                () => {
+                  document.getElementById('chip-bar').innerHTML = `<span class="text-[11px] text-claude-muted italic">Autonomous plan ready — review and confirm on the right panel.</span>`;
+                }
+              );
+            }, 500));
+          }
+        }, (i + 1) * 1700));
+      });
+    }
+
+    function confirmItinerary() {
+      document.getElementById('confirm-area').classList.add('hidden');
+      document.getElementById('confirmed-banner').classList.remove('hidden');
+      window.parent.postMessage({ type: "ROAMLY_COMPLETE", mode: currentMode, total: 840 }, "*");
+    }
+
+    initApp(currentMode);
+  </script>
+</body>
+</html>
