@@ -1,0 +1,677 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Roamly Assist — Conversational Planning</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&family=Source+Serif+4:ital,opsz,wght@0,8..60,400;0,8..60,600;1,8..60,400&display=swap" rel="stylesheet">
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            claude: {
+              bg: '#FAF9F5',
+              surface: '#F0EEE6',
+              tool: '#F4F3EE',
+              border: '#E5E3DC',
+              borderDark: '#D6D3C9',
+              text: '#141413',
+              muted: '#6B6A65',
+              brand: '#1B4D3E',
+              brandHover: '#143A2F',
+              brandLight: '#E8F0ED'
+            }
+          },
+          fontFamily: {
+            serif: ['"Source Serif 4"', 'Georgia', 'serif'],
+            sans: ['Inter', 'system-ui', 'sans-serif'],
+            mono: ['"JetBrains Mono"', 'monospace']
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    body { background-color: #FAF9F5; font-family: 'Inter', sans-serif; color: #141413; }
+    .claude-prose { font-family: 'Source Serif 4', Georgia, serif; font-size: 14px; line-height: 1.55; color: #141413; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .spinner { animation: spin 0.8s linear infinite; }
+    @keyframes pulseText { 0%, 100% { opacity: 0.45; } 50% { opacity: 1; } }
+    .thinking-shimmer { animation: pulseText 1.4s infinite ease-in-out; }
+    @keyframes sendPulse {
+      0%, 100% { box-shadow: 0 0 0 0 rgba(27, 77, 62, 0.45); }
+      50% { box-shadow: 0 0 0 6px rgba(27, 77, 62, 0); }
+    }
+    .send-ready-pulse { animation: sendPulse 1.6s infinite; }
+    .stream-cursor::after {
+      content: '▍';
+      display: inline-block;
+      margin-left: 2px;
+      color: #1B4D3E;
+      animation: pulseText 0.5s infinite;
+    }
+    @keyframes fluidCardReveal {
+      0% { opacity: 0; transform: translateY(6px) scale(0.99); }
+      100% { opacity: 1; transform: translateY(0) scale(1); }
+    }
+    .card-reveal-1 {
+      animation: fluidCardReveal 0.35s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+    }
+    .card-reveal-2 {
+      animation: fluidCardReveal 0.35s cubic-bezier(0.16, 1, 0.3, 1) 0.06s forwards;
+      opacity: 0;
+    }
+    ::-webkit-scrollbar { width: 5px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: #D6D3C9; border-radius: 3px; }
+  </style>
+</head>
+<body class="flex items-center justify-center m-0 p-0 bg-claude-bg select-none overflow-hidden">
+
+  <!-- Primary Canvas: Exactly 900px × 620px -->
+  <div class="w-[900px] h-[620px] bg-claude-bg border border-claude-border grid grid-cols-12 overflow-hidden shadow-sm">
+    
+    <!-- LEFT PANEL: Interaction Workspace (7 cols = 525px) -->
+    <div class="col-span-7 flex flex-col border-r border-claude-border h-full overflow-hidden bg-claude-bg">
+      
+      <!-- Workspace Header -->
+      <div class="px-4 py-2.5 border-b border-claude-border flex items-center justify-between bg-claude-bg shrink-0">
+        <div class="flex items-center space-x-2.5">
+          <div id="ai-header-icon" class="w-7 h-7 rounded-lg bg-claude-brandLight border border-claude-brand/20 flex items-center justify-center shadow-sm"></div>
+          <span class="font-serif font-semibold text-claude-text text-[15px] tracking-tight">Roamly 3.7 Assist</span>
+          <span class="text-[10px] px-2 py-0.5 rounded-md bg-claude-brandLight text-claude-brand font-medium border border-claude-brand/20">Conversational</span>
+        </div>
+        <span id="header-context" class="text-[11px] font-mono text-claude-muted">New Session</span>
+      </div>
+
+      <!-- Dialogue History -->
+      <div id="workspace" class="flex-1 px-4 py-3 overflow-y-auto space-y-3.5"></div>
+
+      <!-- Interaction Dock -->
+      <div id="composer-container" class="px-4 pb-3 pt-2 bg-claude-bg border-t border-claude-border/50 shrink-0">
+        <div id="chip-bar" class="mb-2 flex items-center min-h-[26px]"></div>
+        <div class="bg-white border border-claude-borderDark rounded-xl p-2 shadow-sm flex items-end justify-between transition focus-within:border-claude-brand">
+          <div class="flex items-start space-x-2 flex-1 pr-2">
+            <svg class="w-4 h-4 text-claude-muted shrink-0 ml-1 mt-1" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13"></path>
+            </svg>
+            <textarea
+              id="chat-input"
+              rows="1"
+              readonly
+              placeholder="Click prompt chip above to initialize..."
+              class="w-full text-xs text-claude-text placeholder-claude-muted bg-transparent focus:outline-none cursor-default font-sans resize-none overflow-hidden leading-relaxed"
+            ></textarea>
+          </div>
+          <button
+            id="btn-send"
+            disabled
+            onclick="submitPreparedPrompt()"
+            class="w-7 h-7 rounded-lg bg-claude-borderDark text-white flex items-center justify-center transition cursor-not-allowed shrink-0"
+          >
+            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M5 10l7-7m0 0l7 7m-7-7v18"></path>
+            </svg>
+          </button>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- RIGHT PANEL: Live Summary & Budget Tracker (5 cols = 375px) -->
+    <div class="col-span-5 flex flex-col justify-between h-full bg-white p-4">
+      <div class="flex-1 flex flex-col overflow-hidden">
+        
+        <div class="flex items-center justify-between pb-2.5 mb-3 border-b border-claude-border shrink-0">
+          <div class="flex items-center space-x-2">
+            <span class="w-2 h-2 rounded-full bg-claude-brand"></span>
+            <h2 class="font-serif font-semibold text-claude-text text-sm">Live Itinerary Summary</h2>
+          </div>
+          <span id="artifact-dest" class="text-[10px] font-mono text-claude-muted bg-claude-surface px-2 py-0.5 rounded">No trip active</span>
+        </div>
+
+        <div id="itinerary-empty" class="flex-1 flex flex-col items-center justify-center text-center px-4 border border-dashed border-claude-borderDark rounded-xl bg-claude-bg/40 my-2">
+          <div class="w-7 h-7 rounded-full bg-claude-surface text-claude-muted flex items-center justify-center text-xs font-mono mb-2">—</div>
+          <p class="text-xs font-medium text-claude-text">No Trip Parameters Initialized</p>
+          <p class="text-[11px] text-claude-muted mt-1 leading-relaxed">
+            Dispatch initial requirements to calibrate itinerary allocations and constraint boundaries.
+          </p>
+        </div>
+
+        <div id="itinerary-active" class="hidden flex-1 flex flex-col justify-between space-y-2.5 overflow-hidden">
+          
+          <div class="bg-claude-bg p-3 rounded-xl border border-claude-border shrink-0">
+            <div class="flex justify-between items-baseline mb-1">
+              <span class="text-[11px] font-medium text-claude-muted">Allocated Budget Cap</span>
+              <div>
+                <span id="budget-current" class="text-base font-bold text-claude-text font-sans">€0</span>
+                <span class="text-xs text-claude-muted"> / €900</span>
+              </div>
+            </div>
+            <div class="w-full h-1.5 bg-claude-surface rounded-full overflow-hidden border border-claude-border">
+              <div id="budget-bar" class="h-full bg-claude-brand transition-all duration-500" style="width: 0%"></div>
+            </div>
+          </div>
+
+          <div class="space-y-2 flex-1">
+            <div id="slot-hotel" class="p-2.5 rounded-lg border border-dashed border-claude-borderDark bg-claude-bg/50 text-xs text-claude-muted flex items-center justify-between">
+              <span>1. Accommodation (5 Nights)</span>
+              <span class="font-mono text-[10px]">Awaiting...</span>
+            </div>
+            <div id="slot-flight" class="p-2.5 rounded-lg border border-dashed border-claude-borderDark bg-claude-bg/50 text-xs text-claude-muted flex items-center justify-between">
+              <span>2. Roundtrip Direct Flights</span>
+              <span class="font-mono text-[10px]">Awaiting...</span>
+            </div>
+            <div id="slot-attraction" class="p-2.5 rounded-lg border border-dashed border-claude-borderDark bg-claude-bg/50 text-xs text-claude-muted flex items-center justify-between">
+              <span>3. Activity / City Pass</span>
+              <span class="font-mono text-[10px]">Awaiting...</span>
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+      <div id="itinerary-footer" class="hidden pt-3 border-t border-claude-border mt-2 shrink-0">
+        <div id="confirm-area">
+          <button id="btn-confirm" disabled onclick="confirmItinerary()" class="w-full py-2.5 px-4 rounded-xl font-semibold text-xs text-white bg-claude-borderDark cursor-not-allowed transition">
+            Review and Confirm Itinerary
+          </button>
+          <p class="text-[10px] text-claude-muted text-center mt-1">Locks parameters and logs allocation data to Qualtrics</p>
+        </div>
+        <div id="confirmed-banner" class="hidden p-2.5 rounded-xl bg-claude-brandLight border border-claude-brand/30 text-claude-brand text-xs font-semibold text-center">
+          ✓ Itinerary Confirmed (€890) — Click Next to advance the survey.
+        </div>
+      </div>
+
+    </div>
+
+  </div>
+
+  <script>
+    const CURRENT_MODE = "assist";
+    let timers = [];
+    let animationFrames = [];
+    let pendingStepAction = null;
+
+    const PROMPT_CHAR_INTERVAL_MS = 12.83; // 935 WPM
+    const MODEL_BASE_INTERVAL_MS = 32.43;  // 1850 WPM
+
+    function getRoamlyLogoSVG(sizeClasses, uid) {
+      return `
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="95 40 870 495" class="${sizeClasses}" fill="none">
+          <defs>
+            <linearGradient id="mobius-front-${uid}" x1="82%" y1="12%" x2="18%" y2="88%">
+              <stop offset="0%" stop-color="#4A856C" /><stop offset="45%" stop-color="#28604B" /><stop offset="85%" stop-color="#1B4D3E" /><stop offset="100%" stop-color="#12382B" />
+            </linearGradient>
+            <linearGradient id="mobius-left-upper-${uid}" x1="15%" y1="20%" x2="55%" y2="55%">
+              <stop offset="0%" stop-color="#3B725B" /><stop offset="35%" stop-color="#1B4D3E" /><stop offset="75%" stop-color="#0F3528" /><stop offset="100%" stop-color="#09241B" />
+            </linearGradient>
+            <linearGradient id="mobius-left-inner-${uid}" x1="25%" y1="45%" x2="52%" y2="38%">
+              <stop offset="0%" stop-color="#154233" /><stop offset="60%" stop-color="#0B291F" /><stop offset="100%" stop-color="#061A13" />
+            </linearGradient>
+            <linearGradient id="mobius-left-bevel-${uid}" x1="10%" y1="30%" x2="45%" y2="75%">
+              <stop offset="0%" stop-color="#528E75" /><stop offset="50%" stop-color="#76AA94" /><stop offset="100%" stop-color="#29604C" />
+            </linearGradient>
+            <linearGradient id="mobius-right-lower-${uid}" x1="48%" y1="52%" x2="90%" y2="75%">
+              <stop offset="0%" stop-color="#082219" /><stop offset="35%" stop-color="#164434" /><stop offset="75%" stop-color="#255B47" /><stop offset="100%" stop-color="#0D3125" />
+            </linearGradient>
+            <linearGradient id="mobius-right-inner-${uid}" x1="75%" y1="22%" x2="88%" y2="82%">
+              <stop offset="0%" stop-color="#0D3125" /><stop offset="50%" stop-color="#1B4D3E" /><stop offset="100%" stop-color="#072017" />
+            </linearGradient>
+            <linearGradient id="mobius-right-bevel-${uid}" x1="55%" y1="28%" x2="92%" y2="45%">
+              <stop offset="0%" stop-color="#39705A" /><stop offset="50%" stop-color="#5E977F" /><stop offset="100%" stop-color="#1B4D3E" />
+            </linearGradient>
+          </defs>
+          <path d="M 285 262 C 365 232, 465 245, 535 280 L 470 345 C 405 315, 330 305, 255 322 Z" fill="url(#mobius-left-inner-${uid})" />
+          <path d="M 118 335 C 122 195, 235 92, 375 112 C 455 124, 520 175, 585 235 L 512 308 C 452 252, 392 205, 322 198 C 235 190, 185 250, 198 332 C 210 402, 285 435, 365 415 L 335 495 C 215 512, 114 445, 118 335 Z" fill="url(#mobius-left-upper-${uid})" />
+          <path d="M 468 312 C 538 382, 615 478, 725 492 C 855 508, 945 405, 942 268 C 940 175, 885 102, 805 78 L 832 168 C 875 195, 888 258, 868 325 C 845 398, 778 422, 708 405 C 638 388, 582 322, 525 258 Z" fill="url(#mobius-right-lower-${uid})" />
+          <path d="M 765 152 C 855 152, 915 225, 902 335 C 892 415, 835 475, 755 488 C 865 475, 942 385, 942 268 C 942 155, 865 75, 755 68 Z" fill="url(#mobius-right-inner-${uid})" />
+          <path d="M 118 335 C 122 475, 238 548, 368 512 C 458 486, 525 405, 602 322 C 678 240, 748 162, 838 162 C 895 162, 932 205, 940 258 C 945 142, 862 55, 745 58 C 638 61, 558 142, 478 228 C 398 314, 328 398, 235 392 C 168 388, 132 332, 145 255 C 125 280, 117 308, 118 335 Z" fill="url(#mobius-front-${uid})" />
+          <path d="M 145 255 C 132 332, 168 388, 235 392 C 328 398, 398 314, 478 228 L 492 238 C 408 328, 334 412, 232 406 C 158 401, 118 338, 135 248 Z" fill="url(#mobius-left-bevel-${uid})" />
+          <path d="M 602 322 C 678 240, 748 162, 838 162 C 895 162, 932 205, 940 258 C 930 195, 888 148, 832 148 C 740 148, 668 228, 590 312 Z" fill="url(#mobius-right-bevel-${uid})" />
+        </svg>
+      `;
+    }
+
+    document.getElementById('ai-header-icon').innerHTML = getRoamlyLogoSVG('w-4 h-4', 'header');
+
+    function clearTimers() {
+      timers.forEach(t => { clearTimeout(t); clearInterval(t); });
+      animationFrames.forEach(af => cancelAnimationFrame(af));
+      timers = [];
+      animationFrames = [];
+    }
+
+    function initApp() {
+      clearTimers();
+      pendingStepAction = null;
+
+      document.getElementById('header-context').textContent = 'New Session';
+      document.getElementById('artifact-dest').textContent = 'No trip active';
+
+      document.getElementById('itinerary-empty').classList.remove('hidden');
+      document.getElementById('itinerary-active').classList.add('hidden');
+      document.getElementById('itinerary-footer').classList.add('hidden');
+
+      updateBudget(0);
+      resetSlot('slot-hotel', '1. Accommodation (5 Nights)');
+      resetSlot('slot-flight', '2. Roundtrip Direct Flights');
+      resetSlot('slot-attraction', '3. Activity / City Pass');
+
+      const btnConfirm = document.getElementById('btn-confirm');
+      btnConfirm.disabled = true;
+      btnConfirm.className = "w-full py-2.5 px-4 rounded-xl font-semibold text-xs text-white bg-claude-borderDark cursor-not-allowed transition";
+      document.getElementById('confirm-area').classList.remove('hidden');
+      document.getElementById('confirmed-banner').classList.add('hidden');
+
+      const ws = document.getElementById('workspace');
+      ws.innerHTML = `
+        <div id="empty-greeting" class="h-full flex flex-col items-center justify-center text-center px-4 py-8">
+          <div class="w-10 h-10 rounded-xl bg-claude-brandLight flex items-center justify-center mb-2.5 border border-claude-brand/20 shadow-sm">
+            ${getRoamlyLogoSVG('w-6 h-6', 'hero')}
+          </div>
+          <h3 class="font-serif font-semibold text-base text-claude-text">What can I help you plan today?</h3>
+          <p class="text-xs text-claude-muted mt-0.5 max-w-xs">Define your target destination, duration, and maximum budget allocation.</p>
+        </div>
+      `;
+
+      resetComposer();
+      renderAssistChip(1);
+    }
+
+    function resetSlot(id, label) {
+      const el = document.getElementById(id);
+      el.className = "p-2.5 rounded-lg border border-dashed border-claude-borderDark bg-claude-bg/50 text-xs text-claude-muted flex items-center justify-between";
+      el.innerHTML = `<span>${label}</span><span class="font-mono text-[10px]">Awaiting...</span>`;
+    }
+
+    function activateItineraryPanel() {
+      document.getElementById('header-context').textContent = 'Lisbon • 5d • Max €900';
+      document.getElementById('artifact-dest').textContent = 'Lisbon • 5 Days';
+      document.getElementById('itinerary-empty').classList.add('hidden');
+      document.getElementById('itinerary-active').classList.remove('hidden');
+      document.getElementById('itinerary-footer').classList.remove('hidden');
+    }
+
+    function updateBudget(amount) {
+      document.getElementById('budget-current').textContent = `€${amount}`;
+      document.getElementById('budget-bar').style.width = `${Math.min(100, Math.round((amount / 900) * 100))}%`;
+    }
+
+    function lockHotelSummary() {
+      const el = document.getElementById('slot-hotel');
+      el.className = "p-2.5 rounded-lg border border-claude-brand/30 bg-claude-brandLight/50 text-xs flex items-center justify-between transition";
+      el.innerHTML = `
+        <div>
+          <p class="font-semibold text-claude-text">Hotel Avenida Palace</p>
+          <p class="text-[10px] text-claude-muted">Baixa Central • <strong>4.8★</strong> • 5 Nights</p>
+        </div>
+        <span class="font-bold text-claude-brand font-sans text-xs">€450</span>
+      `;
+      updateBudget(450);
+    }
+
+    function lockFlightSummary() {
+      const el = document.getElementById('slot-flight');
+      el.className = "p-2.5 rounded-lg border border-claude-brand/30 bg-claude-brandLight/50 text-xs flex items-center justify-between transition";
+      el.innerHTML = `
+        <div>
+          <p class="font-semibold text-claude-text">TAP Air Portugal (TP 452)</p>
+          <p class="text-[10px] text-claude-muted"><strong>Direct Morning</strong> • Roundtrip</p>
+        </div>
+        <span class="font-bold text-claude-brand font-sans text-xs">€390</span>
+      `;
+      updateBudget(840);
+    }
+
+    function lockAttractionSummary(name) {
+      const el = document.getElementById('slot-attraction');
+      el.className = "p-2.5 rounded-lg border border-claude-brand/30 bg-claude-brandLight/50 text-xs flex items-center justify-between transition";
+      el.innerHTML = `
+        <div>
+          <p class="font-semibold text-claude-text">${name}</p>
+          <p class="text-[10px] text-claude-muted">Fast-Track Pass / Experience</p>
+        </div>
+        <span class="font-bold text-claude-brand font-sans text-xs">€50</span>
+      `;
+      updateBudget(890);
+
+      const btnConfirm = document.getElementById('btn-confirm');
+      btnConfirm.disabled = false;
+      btnConfirm.className = "w-full py-2.5 px-4 rounded-xl font-semibold text-xs text-white bg-claude-brand hover:bg-claude-brandHover cursor-pointer shadow-sm transition";
+    }
+
+    function formatPartialMarkdown(raw) {
+      let formatted = raw.replace(/\*\*(.*?)\*\*/g, '<strong class="font-semibold text-claude-text">$1</strong>');
+      const parts = formatted.split('**');
+      if (parts.length === 2) {
+        return parts[0] + '<strong class="font-semibold text-claude-text">' + parts[1] + '</strong>';
+      }
+      return formatted;
+    }
+
+    function streamAssistantOutput(markdownText, extraHTML = '', onComplete = null) {
+      const ws = document.getElementById('workspace');
+      const msgId = 'msg-' + Date.now();
+      ws.insertAdjacentHTML('beforeend', `
+        <div id="${msgId}" class="space-y-2">
+          <div id="${msgId}-prose" class="claude-prose stream-cursor"></div>
+          <div id="${msgId}-extra" class="hidden"></div>
+        </div>
+      `);
+
+      const proseEl = document.getElementById(`${msgId}-prose`);
+      const extraEl = document.getElementById(`${msgId}-extra`);
+
+      const tokens = markdownText.split(/(?=\s)/);
+      let idx = 0;
+      let accumulated = '';
+      let lastTime = performance.now();
+      let delayUntilNext = MODEL_BASE_INTERVAL_MS;
+
+      function streamFrame(now) {
+        const elapsed = now - lastTime;
+        if (elapsed >= delayUntilNext) {
+          lastTime = now;
+          const currentToken = tokens[idx];
+          accumulated += currentToken;
+          proseEl.innerHTML = formatPartialMarkdown(accumulated);
+          ws.scrollTop = ws.scrollHeight;
+          idx++;
+
+          if (currentToken.endsWith('.') || currentToken.endsWith('!') || currentToken.endsWith(':')) {
+            delayUntilNext = MODEL_BASE_INTERVAL_MS * 1.9;
+          } else if (currentToken.endsWith(',')) {
+            delayUntilNext = MODEL_BASE_INTERVAL_MS * 1.3;
+          } else if (currentToken.length <= 3) {
+            delayUntilNext = MODEL_BASE_INTERVAL_MS * 0.7;
+          } else {
+            delayUntilNext = MODEL_BASE_INTERVAL_MS;
+          }
+
+          if (idx >= tokens.length) {
+            proseEl.classList.remove('stream-cursor');
+            if (extraHTML) {
+              extraEl.innerHTML = extraHTML;
+              extraEl.classList.remove('hidden');
+              ws.scrollTop = ws.scrollHeight;
+            }
+            if (onComplete) onComplete();
+            return;
+          }
+        }
+        animationFrames.push(requestAnimationFrame(streamFrame));
+      }
+
+      animationFrames.push(requestAnimationFrame(streamFrame));
+    }
+
+    function autoResizeTextarea(el) {
+      el.style.height = 'auto';
+      el.style.height = el.scrollHeight + 'px';
+    }
+
+    function resetComposer() {
+      const input = document.getElementById('chat-input');
+      const sendBtn = document.getElementById('btn-send');
+      input.value = '';
+      input.style.height = 'auto';
+      sendBtn.disabled = true;
+      sendBtn.className = "w-7 h-7 rounded-lg bg-claude-borderDark text-white flex items-center justify-center transition cursor-not-allowed shrink-0";
+    }
+
+    function autoTypePrompt(promptText, stepCallback) {
+      document.getElementById('chip-bar').innerHTML = `<span class="text-[11px] text-claude-muted">Click send arrow or press Enter to dispatch →</span>`;
+      const input = document.getElementById('chat-input');
+      const sendBtn = document.getElementById('btn-send');
+      input.value = '';
+      input.style.height = 'auto';
+      sendBtn.disabled = true;
+      pendingStepAction = null;
+
+      let i = 0;
+      const interval = setInterval(() => {
+        input.value += promptText.charAt(i);
+        autoResizeTextarea(input);
+        i++;
+        if (i >= promptText.length) {
+          clearInterval(interval);
+          pendingStepAction = stepCallback;
+          sendBtn.disabled = false;
+          sendBtn.className = "w-7 h-7 rounded-lg bg-claude-brand hover:bg-claude-brandHover text-white flex items-center justify-center transition cursor-pointer shrink-0 send-ready-pulse";
+        }
+      }, PROMPT_CHAR_INTERVAL_MS);
+      timers.push(interval);
+    }
+
+    function submitPreparedPrompt() {
+      if (!pendingStepAction) return;
+      const fn = pendingStepAction;
+      const text = document.getElementById('chat-input').value;
+      resetComposer();
+      document.getElementById('chip-bar').innerHTML = '';
+      appendUserBubble(text);
+      fn();
+    }
+
+    function appendUserBubble(text) {
+      document.getElementById('empty-greeting')?.remove();
+      const ws = document.getElementById('workspace');
+      ws.insertAdjacentHTML('beforeend', `
+        <div class="flex justify-end">
+          <div class="bg-claude-surface border border-claude-border text-claude-text text-xs px-3.5 py-2 rounded-2xl max-w-[85%] font-sans leading-relaxed">
+            ${text}
+          </div>
+        </div>
+      `);
+      ws.scrollTop = ws.scrollHeight;
+    }
+
+    function showEphemeralThinking(label) {
+      const ws = document.getElementById('workspace');
+      const id = 'think-' + Date.now();
+      ws.insertAdjacentHTML('beforeend', `
+        <div id="${id}" class="flex items-center space-x-2 text-xs text-claude-muted font-serif italic py-1 thinking-shimmer">
+          <span class="text-claude-brand not-italic text-xs">✦</span>
+          <span id="${id}-txt">${label}</span>
+        </div>
+      `);
+      ws.scrollTop = ws.scrollHeight;
+      return id;
+    }
+
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' && pendingStepAction) {
+        e.preventDefault();
+        submitPreparedPrompt();
+      }
+    });
+
+    function renderAssistChip(step) {
+      const chipBar = document.getElementById('chip-bar');
+      if (step === 1) {
+        chipBar.innerHTML = `
+          <button onclick="autoTypePrompt(&quot;Hey! I'm planning a 5-day trip to Lisbon with a €900 budget cap. Could you find a central hotel first?&quot;, executeAssistStep1)" class="text-xs px-3 py-1 rounded-full bg-claude-brandLight text-claude-brand border border-claude-brand/30 hover:bg-claude-brand hover:text-white font-medium transition">
+            ✦ 1. Initialize Lisbon 5-day trip (€900 cap) & search hotels
+          </button>
+        `;
+      } else if (step === 2) {
+        chipBar.innerHTML = `
+          <button onclick="autoTypePrompt(&quot;Great, the hotel is selected. Now search for roundtrip flights to Lisbon within budget.&quot;, executeAssistStep2)" class="text-xs px-3 py-1 rounded-full bg-claude-brandLight text-claude-brand border border-claude-brand/30 hover:bg-claude-brand hover:text-white font-medium transition">
+            ✦ 2. Search roundtrip direct flights to Lisbon
+          </button>
+        `;
+      } else if (step === 3) {
+        chipBar.innerHTML = `
+          <button onclick="autoTypePrompt(&quot;We have €60 remaining under the cap. Suggest a top-rated cultural pass or experience for €50.&quot;, executeAssistStep3)" class="text-xs px-3 py-1 rounded-full bg-claude-brandLight text-claude-brand border border-claude-brand/30 hover:bg-claude-brand hover:text-white font-medium transition">
+            ✦ 3. Allocate remaining budget to city passes & cultural activities
+          </button>
+        `;
+      } else {
+        chipBar.innerHTML = `<span class="text-[11px] text-claude-muted italic">All allocations complete — review and confirm on the right panel.</span>`;
+      }
+    }
+
+    function executeAssistStep1() {
+      activateItineraryPanel();
+      const thinkId = showEphemeralThinking('Setting up 5-day Lisbon parameters (€900 budget cap)...');
+      timers.push(setTimeout(() => {
+        const txtEl = document.getElementById(`${thinkId}-txt`);
+        if (txtEl) txtEl.textContent = 'Filtering live central hotel availability in Baixa...';
+      }, 1000));
+
+      timers.push(setTimeout(() => {
+        document.getElementById(thinkId)?.remove();
+        streamAssistantOutput(
+          `I've initialized your **5-day Lisbon itinerary** with the **€900 budget cap**. Here are central accommodation options priced at **€450 total (€90/night)**. With **Alfama Guest House sold out**, **Hotel Avenida Palace (4.8★, Baixa Central)** is the optimal verified selection:`,
+          `
+          <div class="grid grid-cols-2 gap-2 pt-1 font-sans">
+            <div class="card-reveal-1 border border-claude-borderDark rounded-xl p-2.5 bg-white shadow-sm flex flex-col justify-between">
+              <div>
+                <div class="flex justify-between items-start">
+                  <span class="font-bold text-claude-text text-xs">Hotel Avenida Palace</span>
+                  <span class="text-[10px] bg-claude-brandLight text-claude-brand px-1.5 py-0.5 rounded font-semibold">4.8★</span>
+                </div>
+                <p class="text-[11px] text-claude-muted mt-0.5"><strong>Baixa Central</strong> • 5 Nights • <strong>€450</strong></p>
+              </div>
+              <button id="btn-sel-hotel" onclick="selectHotelAssist()" class="mt-2 w-full py-1 bg-claude-brand hover:bg-claude-brandHover text-white rounded-lg text-xs font-medium transition">Select Hotel (€450)</button>
+            </div>
+            <div class="card-reveal-2 border border-claude-border rounded-xl p-2.5 bg-claude-surface/50 opacity-60 flex flex-col justify-between">
+              <div>
+                <div class="flex justify-between items-start">
+                  <span class="font-semibold text-claude-muted text-xs">Alfama Guest House</span>
+                  <span class="text-[10px] bg-rose-100 text-rose-800 px-1.5 py-0.5 rounded font-semibold">Sold Out</span>
+                </div>
+                <p class="text-[11px] text-claude-muted mt-0.5">Alfama Historic • 5 Nights • <strong>€450</strong></p>
+              </div>
+              <button disabled class="mt-2 w-full py-1 bg-claude-borderDark text-claude-muted rounded-lg text-xs font-medium cursor-not-allowed">Unavailable</button>
+            </div>
+          </div>
+          `
+        );
+      }, 2100));
+    }
+
+    function selectHotelAssist() {
+      const btn = document.getElementById('btn-sel-hotel');
+      btn.disabled = true;
+      btn.textContent = "✓ Selected (€450)";
+      btn.className = "mt-2 w-full py-1 bg-claude-brand/80 text-white rounded-lg text-xs font-medium cursor-default";
+      lockHotelSummary();
+      renderAssistChip(2);
+    }
+
+    function executeAssistStep2() {
+      const thinkId = showEphemeralThinking('Scanning direct flight schedules to Lisbon Portela...');
+      timers.push(setTimeout(() => {
+        document.getElementById(thinkId)?.remove();
+        streamAssistantOutput(
+          `Reviewing roundtrip flights at **€390**. The **late-night layover routing is sold out**, so you can reserve the **TAP Air Portugal Direct Morning Flight (€390)** below, bringing total allocation to **€840 / €900**:`,
+          `
+          <div class="grid grid-cols-2 gap-2 pt-1 font-sans">
+            <div class="card-reveal-1 border border-claude-borderDark rounded-xl p-2.5 bg-white shadow-sm flex flex-col justify-between">
+              <div>
+                <div class="flex justify-between items-start">
+                  <span class="font-bold text-claude-text text-xs">TAP Air Portugal</span>
+                  <span class="text-[10px] bg-claude-brandLight text-claude-brand px-1.5 py-0.5 rounded font-semibold">Direct</span>
+                </div>
+                <p class="text-[11px] text-claude-muted mt-0.5"><strong>08:30 Morning</strong> • Roundtrip • <strong>€390</strong></p>
+              </div>
+              <button id="btn-sel-flight" onclick="selectFlightAssist()" class="mt-2 w-full py-1 bg-claude-brand hover:bg-claude-brandHover text-white rounded-lg text-xs font-medium transition">Select Flight (€390)</button>
+            </div>
+            <div class="card-reveal-2 border border-claude-border rounded-xl p-2.5 bg-claude-surface/50 opacity-60 flex flex-col justify-between">
+              <div>
+                <div class="flex justify-between items-start">
+                  <span class="font-semibold text-claude-muted text-xs">Layover Route</span>
+                  <span class="text-[10px] bg-rose-100 text-rose-800 px-1.5 py-0.5 rounded font-semibold">Sold Out</span>
+                </div>
+                <p class="text-[11px] text-claude-muted mt-0.5">1 Stop Layover • Roundtrip • <strong>€390</strong></p>
+              </div>
+              <button disabled class="mt-2 w-full py-1 bg-claude-borderDark text-claude-muted rounded-lg text-xs font-medium cursor-not-allowed">Unavailable</button>
+            </div>
+          </div>
+          `
+        );
+      }, 1500));
+    }
+
+    function selectFlightAssist() {
+      const btn = document.getElementById('btn-sel-flight');
+      btn.disabled = true;
+      btn.textContent = "✓ Selected (€390)";
+      btn.className = "mt-2 w-full py-1 bg-claude-brand/80 text-white rounded-lg text-xs font-medium cursor-default";
+      lockFlightSummary();
+      renderAssistChip(3);
+    }
+
+    function executeAssistStep3() {
+      const thinkId = showEphemeralThinking('Searching cultural activities under remaining €60 headroom...');
+      timers.push(setTimeout(() => {
+        document.getElementById(thinkId)?.remove();
+        streamAssistantOutput(
+          `With **€60 remaining** under your cap, here are two top-rated cultural options priced at **€50 each**. Both fit cleanly within budget to finalize your itinerary at **€890 / €900**:`,
+          `
+          <div class="grid grid-cols-2 gap-2 pt-1 font-sans">
+            <div id="card-attr-1" class="card-reveal-1 border border-claude-borderDark rounded-xl p-2.5 bg-white shadow-sm flex flex-col justify-between">
+              <div>
+                <div class="flex justify-between items-start">
+                  <span class="font-bold text-claude-text text-xs">Heritage & Jerónimos Pass</span>
+                  <span class="text-[10px] bg-claude-brandLight text-claude-brand px-1.5 py-0.5 rounded font-semibold">4.9★</span>
+                </div>
+                <p class="text-[11px] text-claude-muted mt-0.5">Fast-Track Entry • Belém • <strong>€50</strong></p>
+              </div>
+              <button id="btn-sel-attr-1" onclick="selectAttractionAssist('Lisbon Heritage & Jerónimos Pass', 1)" class="mt-2 w-full py-1 bg-claude-brand hover:bg-claude-brandHover text-white rounded-lg text-xs font-medium transition">Select Pass (€50)</button>
+            </div>
+            <div id="card-attr-2" class="card-reveal-2 border border-claude-borderDark rounded-xl p-2.5 bg-white shadow-sm flex flex-col justify-between">
+              <div>
+                <div class="flex justify-between items-start">
+                  <span class="font-bold text-claude-text text-xs">Cultural & Fado Experience</span>
+                  <span class="text-[10px] bg-claude-brandLight text-claude-brand px-1.5 py-0.5 rounded font-semibold">4.8★</span>
+                </div>
+                <p class="text-[11px] text-claude-muted mt-0.5">Alfama Tour + Tasting • <strong>€50</strong></p>
+              </div>
+              <button id="btn-sel-attr-2" onclick="selectAttractionAssist('Lisbon Cultural & Fado Experience', 2)" class="mt-2 w-full py-1 bg-claude-brand hover:bg-claude-brandHover text-white rounded-lg text-xs font-medium transition">Select Tour (€50)</button>
+            </div>
+          </div>
+          `
+        );
+      }, 1400));
+    }
+
+    function selectAttractionAssist(name, index) {
+      const chosenBtn = document.getElementById(`btn-sel-attr-${index}`);
+      const otherBtn = document.getElementById(`btn-sel-attr-${index === 1 ? 2 : 1}`);
+      const otherCard = document.getElementById(`card-attr-${index === 1 ? 2 : 1}`);
+
+      chosenBtn.disabled = true;
+      chosenBtn.textContent = "✓ Selected (€50)";
+      chosenBtn.className = "mt-2 w-full py-1 bg-claude-brand/80 text-white rounded-lg text-xs font-medium cursor-default";
+
+      otherBtn.disabled = true;
+      otherBtn.textContent = "Unselected";
+      otherBtn.className = "mt-2 w-full py-1 bg-claude-borderDark text-claude-muted rounded-lg text-xs font-medium cursor-not-allowed";
+      otherCard.classList.add('opacity-50');
+
+      lockAttractionSummary(name);
+      renderAssistChip(4);
+    }
+
+    function confirmItinerary() {
+      document.getElementById('confirm-area').classList.add('hidden');
+      document.getElementById('confirmed-banner').classList.remove('hidden');
+
+      window.parent.postMessage({
+        type: "ROAMLY_COMPLETE",
+        mode: CURRENT_MODE,
+        total: 890
+      }, "*");
+    }
+
+    initApp();
+  </script>
+</body>
+</html>
