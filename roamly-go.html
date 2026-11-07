@@ -4,187 +4,166 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Roamly Go</title>
-  <script src="https://cdn.tailwindcss.com"></script>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&family=Source+Serif+4:ital,opsz,wght@0,8..60,400;0,8..60,600;1,8..60,400&display=swap" rel="stylesheet">
-  <script>
-    tailwind.config = {
-      theme: {
-        extend: {
-          colors: {
-            claude: {
-              bg: '#FAF9F5',
-              surface: '#F0EEE6',
-              tool: '#F4F3EE',
-              border: '#E5E3DC',
-              borderDark: '#D6D3C9',
-              text: '#141413',
-              muted: '#6B6A65',
-              brand: '#1B4D3E',
-              brandHover: '#143A2F',
-              brandLight: '#E8F0ED'
-            }
-          },
-          fontFamily: {
-            serif: ['"Source Serif 4"', 'Georgia', 'serif'],
-            sans: ['Inter', 'system-ui', 'sans-serif'],
-            mono: ['"JetBrains Mono"', 'monospace']
-          }
-        }
-      }
-    }
-  </script>
   <style>
-    body { background-color: #E5E3DC; font-family: 'Inter', sans-serif; color: #141413; margin: 0; padding: 0; }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { background-color: #E5E3DC; font-family: 'Inter', system-ui, -apple-system, sans-serif; color: #141413; display: flex; align-items: center; justify-content: center; min-height: 100vh; overflow: hidden; user-select: none; }
+    
+    /* Layout Envelope */
+    .app-canvas { width: 900px; height: 620px; background: #FAF9F5; border-radius: 12px; border: 1px solid #E5E3DC; display: grid; grid-template-columns: 525px 375px; overflow: hidden; box-shadow: 0 20px 25px -5px rgba(0,0,0,0.1); }
+    
+    /* Left Panel */
+    .panel-left { width: 525px; height: 620px; display: flex; flex-direction: column; border-right: 1px solid #E5E3DC; background: #FAF9F5; overflow: hidden; }
+    .panel-header { height: 48px; padding: 10px 16px; border-bottom: 1px solid #E5E3DC; display: flex; align-items: center; justify-content: space-between; flex-shrink: 0; background: #FAF9F5; }
+    .header-brand { display: flex; align-items: center; gap: 10px; }
+    .header-icon-box { width: 28px; height: 28px; border-radius: 8px; background: #E8F0ED; border: 1px solid rgba(27,77,62,0.2); display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+    .header-title { font-family: 'Source Serif 4', Georgia, serif; font-weight: 600; font-size: 15px; color: #141413; }
+    .header-badge { font-size: 10px; padding: 2px 8px; border-radius: 6px; background: #E8F0ED; color: #1B4D3E; font-weight: 500; border: 1px solid rgba(27,77,62,0.2); }
+    .header-session { font-size: 11px; font-family: 'JetBrains Mono', monospace; color: #6B6A65; }
+    
+    /* Workspace */
+    .workspace-scroll { flex: 1; padding: 12px 16px; overflow-y: auto; display: flex; flex-direction: column; gap: 14px; }
     .claude-prose { font-family: 'Source Serif 4', Georgia, serif; font-size: 14px; line-height: 1.55; color: #141413; }
+    .claude-prose strong { font-weight: 600; color: #141413; }
+    
+    /* User Message */
+    .user-bubble-row { display: flex; justify-content: flex-end; width: 100%; }
+    .user-bubble { background: #F0EEE6; border: 1px solid #E5E3DC; color: #141413; font-size: 12px; padding: 8px 14px; border-radius: 16px; max-width: 85%; line-height: 1.45; }
+    
+    /* Composer Dock */
+    .composer-dock { padding: 8px 16px 12px; background: #FAF9F5; border-top: 1px solid rgba(229,227,220,0.5); flex-shrink: 0; }
+    .chip-container { min-height: 26px; margin-bottom: 8px; display: flex; align-items: center; }
+    .prompt-chip { font-size: 12px; padding: 4px 12px; border-radius: 9999px; background: #E8F0ED; color: #1B4D3E; border: 1px solid rgba(27,77,62,0.3); font-weight: 500; cursor: pointer; transition: all 0.15s; }
+    .prompt-chip:hover { background: #1B4D3E; color: #FFFFFF; }
+    .composer-input-card { background: #FFFFFF; border: 1px solid #D6D3C9; border-radius: 12px; padding: 8px 10px; display: flex; align-items: flex-end; justify-content: space-between; gap: 8px; box-shadow: 0 1px 2px rgba(0,0,0,0.04); }
+    .composer-textarea { flex: 1; border: none; outline: none; resize: none; font-size: 12px; font-family: 'Inter', sans-serif; background: transparent; color: #141413; line-height: 1.4; }
+    .composer-textarea::placeholder { color: #6B6A65; }
+    .btn-send { width: 28px; height: 28px; border-radius: 8px; background: #D6D3C9; border: none; color: #FFFFFF; display: flex; align-items: center; justify-content: center; cursor: not-allowed; flex-shrink: 0; transition: all 0.15s; }
+    .btn-send.ready { background: #1B4D3E; cursor: pointer; animation: sendPulse 1.6s infinite; }
+    .btn-send.ready:hover { background: #143A2F; }
+
+    /* Right Panel */
+    .panel-right { width: 375px; height: 620px; display: flex; flex-direction: column; justify-content: space-between; background: #FFFFFF; padding: 16px; flex-shrink: 0; }
+    .right-header { display: flex; align-items: center; justify-content: space-between; padding-bottom: 10px; border-bottom: 1px solid #E5E3DC; margin-bottom: 12px; }
+    .right-header-title { display: flex; align-items: center; gap: 8px; font-family: 'Source Serif 4', serif; font-size: 14px; font-weight: 600; color: #141413; }
+    .status-dot { width: 8px; height: 8px; border-radius: 50%; background: #1B4D3E; }
+    .badge-dest { font-size: 10px; font-family: 'JetBrains Mono', monospace; color: #6B6A65; background: #F0EEE6; padding: 2px 8px; border-radius: 4px; }
+    
+    /* Itinerary Empty State */
+    .itinerary-empty-box { flex: 1; border: 1px dashed #D6D3C9; border-radius: 12px; background: rgba(250,249,245,0.4); display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; padding: 16px; margin: 8px 0; }
+    .empty-dash-icon { width: 28px; height: 28px; border-radius: 50%; background: #F0EEE6; color: #6B6A65; display: flex; align-items: center; justify-content: center; font-size: 12px; margin-bottom: 8px; }
+    
+    /* Budget Artifact */
+    .budget-card { background: #FAF9F5; border: 1px solid #E5E3DC; border-radius: 12px; padding: 12px; margin-bottom: 10px; }
+    .budget-meta { display: flex; justify-content: space-between; align-items: baseline; }
+    .budget-bar-track { width: 100%; height: 6px; background: #F0EEE6; border-radius: 9999px; overflow: hidden; border: 1px solid #E5E3DC; margin-top: 6px; }
+    .budget-bar-fill { height: 100%; background: #1B4D3E; width: 0%; transition: width 0.5s ease; }
+    
+    /* Slot Items */
+    .slots-container { display: flex; flex-direction: column; gap: 8px; }
+    .slot-item { padding: 10px 12px; border-radius: 8px; border: 1px dashed #D6D3C9; background: rgba(250,249,245,0.5); font-size: 12px; color: #6B6A65; display: flex; justify-content: space-between; align-items: center; }
+    .slot-item.locked { border: 1px solid rgba(27,77,62,0.3); background: rgba(232,240,237,0.5); }
+    
+    /* Footer Confirm */
+    .panel-footer { border-top: 1px solid #E5E3DC; padding-top: 12px; margin-top: 8px; }
+    .btn-confirm { width: 100%; padding: 10px 16px; border-radius: 12px; font-weight: 600; font-size: 12px; color: #FFFFFF; background: #D6D3C9; border: none; cursor: not-allowed; transition: all 0.15s; }
+    .btn-confirm.unlocked { background: #1B4D3E; cursor: pointer; }
+    .btn-confirm.unlocked:hover { background: #143A2F; }
+    .confirmed-banner { padding: 10px; border-radius: 12px; background: #E8F0ED; border: 1px solid rgba(27,77,62,0.3); color: #1B4D3E; font-size: 12px; font-weight: 600; text-align: center; }
+
+    /* Keyframes */
     @keyframes spin { to { transform: rotate(360deg); } }
     .spinner { animation: spin 0.8s linear infinite; }
     @keyframes pulseText { 0%, 100% { opacity: 0.45; } 50% { opacity: 1; } }
     .thinking-shimmer { animation: pulseText 1.4s infinite ease-in-out; }
-    @keyframes sendPulse {
-      0%, 100% { box-shadow: 0 0 0 0 rgba(27, 77, 62, 0.45); }
-      50% { box-shadow: 0 0 0 6px rgba(27, 77, 62, 0); }
-    }
-    .send-ready-pulse { animation: sendPulse 1.6s infinite; }
-    .stream-cursor::after {
-      content: '▍';
-      display: inline-block;
-      margin-left: 2px;
-      color: #1B4D3E;
-      animation: pulseText 0.5s infinite;
-    }
-    @keyframes fluidCardReveal {
-      0% { opacity: 0; transform: translateY(6px) scale(0.99); }
-      100% { opacity: 1; transform: translateY(0) scale(1); }
-    }
-    .card-reveal-1 {
-      animation: fluidCardReveal 0.35s cubic-bezier(0.16, 1, 0.3, 1) forwards;
-    }
-    details summary::-webkit-details-marker { display: none; }
+    @keyframes sendPulse { 0%, 100% { box-shadow: 0 0 0 0 rgba(27,77,62,0.45); } 50% { box-shadow: 0 0 0 6px rgba(27,77,62,0); } }
+    .stream-cursor::after { content: '▍'; display: inline-block; margin-left: 2px; color: #1B4D3E; animation: pulseText 0.5s infinite; }
+    
+    .hidden { display: none !important; }
     ::-webkit-scrollbar { width: 5px; }
-    ::-webkit-scrollbar-track { background: transparent; }
     ::-webkit-scrollbar-thumb { background: #D6D3C9; border-radius: 3px; }
   </style>
 </head>
-<body class="flex items-center justify-center min-h-screen p-0 m-0 select-none overflow-hidden">
+<body>
 
-  <!-- Primary Canvas: Exactly 900px × 620px -->
-  <div class="w-[900px] h-[620px] bg-claude-bg rounded-xl shadow-2xl border border-claude-border grid grid-cols-12 overflow-hidden" style="width: 900px; height: 620px;">
+  <div class="app-canvas">
     
-    <!-- LEFT PANEL: Interaction Workspace (7 cols = 525px) -->
-    <div class="col-span-7 flex flex-col border-r border-claude-border h-full overflow-hidden bg-claude-bg" style="width: 525px;">
-      
-      <!-- Workspace Header -->
-      <div class="px-4 py-2.5 border-b border-claude-border flex items-center justify-between bg-claude-bg shrink-0" style="height: 48px;">
-        <div class="flex items-center space-x-2.5">
-          <div id="ai-header-icon" class="rounded-lg bg-claude-brandLight border border-claude-brand/20 flex items-center justify-center shadow-sm shrink-0" style="width: 28px; height: 28px; min-width: 28px; min-height: 28px;"></div>
-          <span class="font-serif font-semibold text-claude-text text-[15px] tracking-tight">Roamly 3.7 Go</span>
-          <span class="text-[10px] px-2 py-0.5 rounded-md bg-claude-brandLight text-claude-brand font-medium border border-claude-brand/20">Autonomous Agent</span>
+    <!-- LEFT PANEL (525px) -->
+    <div class="panel-left">
+      <div class="panel-header">
+        <div class="header-brand">
+          <div id="ai-header-icon" class="header-icon-box"></div>
+          <span class="header-title">Roamly 3.7 Go</span>
+          <span class="header-badge">Autonomous Agent</span>
         </div>
-        <span id="header-context" class="text-[11px] font-mono text-claude-muted">New Session</span>
+        <span id="header-context" class="header-session">New Session</span>
       </div>
 
-      <!-- Dialogue History -->
-      <div id="workspace" class="flex-1 px-4 py-3 overflow-y-auto space-y-3.5"></div>
+      <div id="workspace" class="workspace-scroll"></div>
 
-      <!-- Interaction Dock -->
-      <div id="composer-container" class="px-4 pb-3 pt-2 bg-claude-bg border-t border-claude-border/50 shrink-0">
-        <div id="chip-bar" class="mb-2 flex items-center min-h-[26px]"></div>
-        <div class="bg-white border border-claude-borderDark rounded-xl p-2 shadow-sm flex items-end justify-between transition focus-within:border-claude-brand">
-          <div class="flex items-start space-x-2 flex-1 pr-2">
-            <svg style="width: 16px; height: 16px; min-width: 16px; min-height: 16px;" class="w-4 h-4 text-claude-muted shrink-0 ml-1 mt-1" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13"></path>
-            </svg>
-            <textarea
-              id="chat-input"
-              rows="1"
-              readonly
-              placeholder="Click prompt chip above to initialize..."
-              class="w-full text-xs text-claude-text placeholder-claude-muted bg-transparent focus:outline-none cursor-default font-sans resize-none overflow-hidden leading-relaxed"
-            ></textarea>
-          </div>
-          <button
-            id="btn-send"
-            disabled
-            onclick="submitPreparedPrompt()"
-            class="w-7 h-7 rounded-lg bg-claude-borderDark text-white flex items-center justify-center transition cursor-not-allowed shrink-0"
-            style="width: 28px; height: 28px; min-width: 28px; min-height: 28px;"
-          >
-            <svg style="width: 14px; height: 14px;" class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" d="M5 10l7-7m0 0l7 7m-7-7v18"></path>
-            </svg>
+      <div class="composer-dock">
+        <div id="chip-bar" class="chip-container"></div>
+        <div class="composer-input-card">
+          <textarea id="chat-input" rows="1" readonly placeholder="Click prompt chip above to delegate trip..." class="composer-textarea"></textarea>
+          <button id="btn-send" disabled onclick="submitPreparedPrompt()" class="btn-send">
+            <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M5 10l7-7m0 0l7 7m-7-7v18"></path></svg>
           </button>
         </div>
       </div>
-
     </div>
 
-    <!-- RIGHT PANEL: Live Summary & Budget Tracker (5 cols = 375px) -->
-    <div class="col-span-5 flex flex-col justify-between h-full bg-white p-4" style="width: 375px;">
-      <div class="flex-1 flex flex-col overflow-hidden">
-        
-        <div class="flex items-center justify-between pb-2.5 mb-3 border-b border-claude-border shrink-0">
-          <div class="flex items-center space-x-2">
-            <span class="w-2 h-2 rounded-full bg-claude-brand"></span>
-            <h2 class="font-serif font-semibold text-claude-text text-sm">Live Itinerary Summary</h2>
+    <!-- RIGHT PANEL (375px) -->
+    <div class="panel-right">
+      <div style="flex: 1; display: flex; flex-direction: column; overflow: hidden;">
+        <div class="right-header">
+          <div class="right-header-title">
+            <span class="status-dot"></span>
+            <span>Live Itinerary Summary</span>
           </div>
-          <span id="artifact-dest" class="text-[10px] font-mono text-claude-muted bg-claude-surface px-2 py-0.5 rounded">No trip active</span>
+          <span id="artifact-dest" class="badge-dest">No trip active</span>
         </div>
 
-        <div id="itinerary-empty" class="flex-1 flex flex-col items-center justify-center text-center px-4 border border-dashed border-claude-borderDark rounded-xl bg-claude-bg/40 my-2">
-          <div class="w-7 h-7 rounded-full bg-claude-surface text-claude-muted flex items-center justify-center text-xs font-mono mb-2" style="width: 28px; height: 28px;">—</div>
-          <p class="text-xs font-medium text-claude-text">No Trip Parameters Initialized</p>
-          <p class="text-[11px] text-claude-muted mt-1 leading-relaxed">
-            Dispatch initial requirements to calibrate itinerary allocations and constraint boundaries.
+        <div id="itinerary-empty" class="itinerary-empty-box">
+          <div class="empty-dash-icon">—</div>
+          <p style="font-size: 12px; font-weight: 500; color: #141413;">No Trip Parameters Initialized</p>
+          <p style="font-size: 11px; color: #6B6A65; margin-top: 4px; line-height: 1.4;">
+            Dispatch requirements to calibrate allocations and €900 budget constraints.
           </p>
         </div>
 
-        <div id="itinerary-active" class="hidden flex-1 flex flex-col justify-between space-y-2.5 overflow-hidden">
-          
-          <div class="bg-claude-bg p-3 rounded-xl border border-claude-border shrink-0">
-            <div class="flex justify-between items-baseline mb-1">
-              <span class="text-[11px] font-medium text-claude-muted">Allocated Budget Cap</span>
+        <div id="itinerary-active" class="hidden" style="flex: 1; display: flex; flex-direction: column; gap: 10px;">
+          <div class="budget-card">
+            <div class="budget-meta">
+              <span style="font-size: 11px; font-weight: 500; color: #6B6A65;">Allocated Budget Cap</span>
               <div>
-                <span id="budget-current" class="text-base font-bold text-claude-text font-sans">€0</span>
-                <span class="text-xs text-claude-muted"> / €900</span>
+                <span id="budget-current" style="font-size: 16px; font-weight: 700; color: #141413;">€0</span>
+                <span style="font-size: 12px; color: #6B6A65;"> / €900</span>
               </div>
             </div>
-            <div class="w-full h-1.5 bg-claude-surface rounded-full overflow-hidden border border-claude-border">
-              <div id="budget-bar" class="h-full bg-claude-brand transition-all duration-500" style="width: 0%"></div>
+            <div class="budget-bar-track">
+              <div id="budget-bar" class="budget-bar-fill"></div>
             </div>
           </div>
 
-          <div class="space-y-2 flex-1">
-            <div id="slot-hotel" class="p-2.5 rounded-lg border border-dashed border-claude-borderDark bg-claude-bg/50 text-xs text-claude-muted flex items-center justify-between">
-              <span>1. Accommodation (5 Nights)</span>
-              <span class="font-mono text-[10px]">Awaiting...</span>
-            </div>
-            <div id="slot-flight" class="p-2.5 rounded-lg border border-dashed border-claude-borderDark bg-claude-bg/50 text-xs text-claude-muted flex items-center justify-between">
-              <span>2. Roundtrip Direct Flights</span>
-              <span class="font-mono text-[10px]">Awaiting...</span>
-            </div>
-            <div id="slot-attraction" class="p-2.5 rounded-lg border border-dashed border-claude-borderDark bg-claude-bg/50 text-xs text-claude-muted flex items-center justify-between">
-              <span>3. Activity / City Pass</span>
-              <span class="font-mono text-[10px]">Awaiting...</span>
-            </div>
+          <div class="slots-container">
+            <div id="slot-hotel" class="slot-item"><span>1. Accommodation (5 Nights)</span><span style="font-family: monospace; font-size: 10px;">Awaiting...</span></div>
+            <div id="slot-flight" class="slot-item"><span>2. Roundtrip Direct Flights</span><span style="font-family: monospace; font-size: 10px;">Awaiting...</span></div>
+            <div id="slot-attraction" class="slot-item"><span>3. Activity / City Pass</span><span style="font-family: monospace; font-size: 10px;">Awaiting...</span></div>
           </div>
-
         </div>
       </div>
 
-      <div id="itinerary-footer" class="hidden pt-3 border-t border-claude-border mt-2 shrink-0">
+      <div id="itinerary-footer" class="panel-footer hidden">
         <div id="confirm-area">
-          <button id="btn-confirm" disabled onclick="confirmItinerary()" class="w-full py-2.5 px-4 rounded-xl font-semibold text-xs text-white bg-claude-borderDark cursor-not-allowed transition">
-            Review and Confirm Itinerary
-          </button>
-          <p class="text-[10px] text-claude-muted text-center mt-1">Locks parameters and logs allocation data to Qualtrics</p>
+          <button id="btn-confirm" disabled onclick="confirmItinerary()" class="btn-confirm">Review and Confirm Itinerary</button>
+          <p style="font-size: 10px; color: #6B6A65; text-align: center; margin-top: 4px;">Locks parameters and logs allocation data to Qualtrics</p>
         </div>
-        <div id="confirmed-banner" class="hidden p-2.5 rounded-xl bg-claude-brandLight border border-claude-brand/30 text-claude-brand text-xs font-semibold text-center">
+        <div id="confirmed-banner" class="confirmed-banner hidden">
           ✓ Itinerary Confirmed (€890) — Click Next to advance the survey.
         </div>
       </div>
-
     </div>
 
   </div>
@@ -238,7 +217,7 @@
     document.getElementById('ai-header-icon').innerHTML = getRoamlyLogoSVG(18, 'header');
 
     function clearTimers() {
-      timers.forEach(t => { clearTimeout(t); clearInterval(t); });
+      timers.forEach(t => clearTimeout(t));
       animationFrames.forEach(af => cancelAnimationFrame(af));
       timers = [];
       animationFrames = [];
@@ -250,7 +229,6 @@
 
       document.getElementById('header-context').textContent = 'New Session';
       document.getElementById('artifact-dest').textContent = 'No trip active';
-
       document.getElementById('itinerary-empty').classList.remove('hidden');
       document.getElementById('itinerary-active').classList.add('hidden');
       document.getElementById('itinerary-footer').classList.add('hidden');
@@ -260,20 +238,14 @@
       resetSlot('slot-flight', '2. Roundtrip Direct Flights');
       resetSlot('slot-attraction', '3. Activity / City Pass');
 
-      const btnConfirm = document.getElementById('btn-confirm');
-      btnConfirm.disabled = true;
-      btnConfirm.className = "w-full py-2.5 px-4 rounded-xl font-semibold text-xs text-white bg-claude-borderDark cursor-not-allowed transition";
-      document.getElementById('confirm-area').classList.remove('hidden');
-      document.getElementById('confirmed-banner').classList.add('hidden');
-
       const ws = document.getElementById('workspace');
       ws.innerHTML = `
-        <div id="empty-greeting" class="h-full flex flex-col items-center justify-center text-center px-4 py-8">
-          <div class="rounded-xl bg-claude-brandLight flex items-center justify-center mb-2.5 border border-claude-brand/20 shadow-sm shrink-0" style="width: 40px; height: 40px; min-width: 40px; min-height: 40px;">
+        <div id="empty-greeting" style="height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; padding: 32px 16px;">
+          <div style="width: 40px; height: 40px; border-radius: 12px; background: #E8F0ED; border: 1px solid rgba(27,77,62,0.2); display: flex; align-items: center; justify-content: center; margin-bottom: 10px;">
             ${getRoamlyLogoSVG(24, 'hero')}
           </div>
-          <h3 class="font-serif font-semibold text-base text-claude-text">What can I help you plan today?</h3>
-          <p class="text-xs text-claude-muted mt-0.5 max-w-xs">Define your target destination, duration, and maximum budget allocation.</p>
+          <h3 style="font-family: 'Source Serif 4', Georgia, serif; font-size: 16px; font-weight: 600; color: #141413;">What can I help you plan today?</h3>
+          <p style="font-size: 12px; color: #6B6A65; margin-top: 2px;">Define your target destination, duration, and maximum budget allocation.</p>
         </div>
       `;
 
@@ -283,8 +255,8 @@
 
     function resetSlot(id, label) {
       const el = document.getElementById(id);
-      el.className = "p-2.5 rounded-lg border border-dashed border-claude-borderDark bg-claude-bg/50 text-xs text-claude-muted flex items-center justify-between";
-      el.innerHTML = `<span>${label}</span><span class="font-mono text-[10px]">Awaiting...</span>`;
+      el.className = "slot-item";
+      el.innerHTML = `<span>${label}</span><span style="font-family: monospace; font-size: 10px;">Awaiting...</span>`;
     }
 
     function activateItineraryPanel() {
@@ -302,52 +274,52 @@
 
     function lockHotelSummary() {
       const el = document.getElementById('slot-hotel');
-      el.className = "p-2.5 rounded-lg border border-claude-brand/30 bg-claude-brandLight/50 text-xs flex items-center justify-between transition";
+      el.className = "slot-item locked";
       el.innerHTML = `
         <div>
-          <p class="font-semibold text-claude-text">Hotel Avenida Palace</p>
-          <p class="text-[10px] text-claude-muted">Baixa Central • <strong>4.8★</strong> • 5 Nights</p>
+          <p style="font-weight: 600; color: #141413;">Hotel Avenida Palace</p>
+          <p style="font-size: 10px; color: #6B6A65;">Baixa Central • <strong>4.8★</strong> • 5 Nights</p>
         </div>
-        <span class="font-bold text-claude-brand font-sans text-xs">€450</span>
+        <span style="font-weight: 700; color: #1B4D3E; font-size: 12px;">€450</span>
       `;
       updateBudget(450);
     }
 
     function lockFlightSummary() {
       const el = document.getElementById('slot-flight');
-      el.className = "p-2.5 rounded-lg border border-claude-brand/30 bg-claude-brandLight/50 text-xs flex items-center justify-between transition";
+      el.className = "slot-item locked";
       el.innerHTML = `
         <div>
-          <p class="font-semibold text-claude-text">TAP Air Portugal (TP 452)</p>
-          <p class="text-[10px] text-claude-muted"><strong>Direct Morning</strong> • Roundtrip</p>
+          <p style="font-weight: 600; color: #141413;">TAP Air Portugal (TP 452)</p>
+          <p style="font-size: 10px; color: #6B6A65;"><strong>Direct Morning</strong> • Roundtrip</p>
         </div>
-        <span class="font-bold text-claude-brand font-sans text-xs">€390</span>
+        <span style="font-weight: 700; color: #1B4D3E; font-size: 12px;">€390</span>
       `;
       updateBudget(840);
     }
 
     function lockAttractionSummary(name) {
       const el = document.getElementById('slot-attraction');
-      el.className = "p-2.5 rounded-lg border border-claude-brand/30 bg-claude-brandLight/50 text-xs flex items-center justify-between transition";
+      el.className = "slot-item locked";
       el.innerHTML = `
         <div>
-          <p class="font-semibold text-claude-text">${name}</p>
-          <p class="text-[10px] text-claude-muted">Fast-Track Pass / Experience</p>
+          <p style="font-weight: 600; color: #141413;">${name}</p>
+          <p style="font-size: 10px; color: #6B6A65;">Fast-Track Pass / Experience</p>
         </div>
-        <span class="font-bold text-claude-brand font-sans text-xs">€50</span>
+        <span style="font-weight: 700; color: #1B4D3E; font-size: 12px;">€50</span>
       `;
       updateBudget(890);
 
       const btnConfirm = document.getElementById('btn-confirm');
       btnConfirm.disabled = false;
-      btnConfirm.className = "w-full py-2.5 px-4 rounded-xl font-semibold text-xs text-white bg-claude-brand hover:bg-claude-brandHover cursor-pointer shadow-sm transition";
+      btnConfirm.className = "btn-confirm unlocked";
     }
 
     function formatPartialMarkdown(raw) {
-      let formatted = raw.replace(/\*\*(.*?)\*\*/g, '<strong class="font-semibold text-claude-text">$1</strong>');
+      let formatted = raw.replace(/\*\*(.*?)\*\*/g, '<strong style="font-weight:600; color:#141413;">$1</strong>');
       const parts = formatted.split('**');
       if (parts.length === 2) {
-        return parts[0] + '<strong class="font-semibold text-claude-text">' + parts[1] + '</strong>';
+        return parts[0] + '<strong style="font-weight:600; color:#141413;">' + parts[1] + '</strong>';
       }
       return formatted;
     }
@@ -356,7 +328,7 @@
       const ws = document.getElementById('workspace');
       const msgId = 'msg-' + Date.now();
       ws.insertAdjacentHTML('beforeend', `
-        <div id="${msgId}" class="space-y-2">
+        <div id="${msgId}" style="display: flex; flex-direction: column; gap: 8px;">
           <div id="${msgId}-prose" class="claude-prose stream-cursor"></div>
           <div id="${msgId}-extra" class="hidden"></div>
         </div>
@@ -364,7 +336,6 @@
 
       const proseEl = document.getElementById(`${msgId}-prose`);
       const extraEl = document.getElementById(`${msgId}-extra`);
-
       const tokens = markdownText.split(/(?=\s)/);
       let idx = 0;
       let accumulated = '';
@@ -385,8 +356,6 @@
             delayUntilNext = MODEL_BASE_INTERVAL_MS * 1.9;
           } else if (currentToken.endsWith(',')) {
             delayUntilNext = MODEL_BASE_INTERVAL_MS * 1.3;
-          } else if (currentToken.length <= 3) {
-            delayUntilNext = MODEL_BASE_INTERVAL_MS * 0.7;
           } else {
             delayUntilNext = MODEL_BASE_INTERVAL_MS;
           }
@@ -404,43 +373,34 @@
         }
         animationFrames.push(requestAnimationFrame(streamFrame));
       }
-
       animationFrames.push(requestAnimationFrame(streamFrame));
-    }
-
-    function autoResizeTextarea(el) {
-      el.style.height = 'auto';
-      el.style.height = el.scrollHeight + 'px';
     }
 
     function resetComposer() {
       const input = document.getElementById('chat-input');
       const sendBtn = document.getElementById('btn-send');
       input.value = '';
-      input.style.height = 'auto';
       sendBtn.disabled = true;
-      sendBtn.className = "w-7 h-7 rounded-lg bg-claude-borderDark text-white flex items-center justify-center transition cursor-not-allowed shrink-0";
+      sendBtn.className = "btn-send";
     }
 
     function autoTypePrompt(promptText, stepCallback) {
-      document.getElementById('chip-bar').innerHTML = `<span class="text-[11px] text-claude-muted">Click send arrow or press Enter to dispatch →</span>`;
+      document.getElementById('chip-bar').innerHTML = `<span style="font-size: 11px; color: #6B6A65;">Click send arrow or press Enter to dispatch →</span>`;
       const input = document.getElementById('chat-input');
       const sendBtn = document.getElementById('btn-send');
       input.value = '';
-      input.style.height = 'auto';
       sendBtn.disabled = true;
       pendingStepAction = null;
 
       let i = 0;
       const interval = setInterval(() => {
         input.value += promptText.charAt(i);
-        autoResizeTextarea(input);
         i++;
         if (i >= promptText.length) {
           clearInterval(interval);
           pendingStepAction = stepCallback;
           sendBtn.disabled = false;
-          sendBtn.className = "w-7 h-7 rounded-lg bg-claude-brand hover:bg-claude-brandHover text-white flex items-center justify-center transition cursor-pointer shrink-0 send-ready-pulse";
+          sendBtn.className = "btn-send ready";
         }
       }, PROMPT_CHAR_INTERVAL_MS);
       timers.push(interval);
@@ -460,10 +420,8 @@
       document.getElementById('empty-greeting')?.remove();
       const ws = document.getElementById('workspace');
       ws.insertAdjacentHTML('beforeend', `
-        <div class="flex justify-end">
-          <div class="bg-claude-surface border border-claude-border text-claude-text text-xs px-3.5 py-2 rounded-2xl max-w-[85%] font-sans leading-relaxed">
-            ${text}
-          </div>
+        <div class="user-bubble-row">
+          <div class="user-bubble">${text}</div>
         </div>
       `);
       ws.scrollTop = ws.scrollHeight;
@@ -479,7 +437,7 @@
     function renderGoChip() {
       const chipBar = document.getElementById('chip-bar');
       chipBar.innerHTML = `
-        <button onclick="autoTypePrompt(&quot;Hey! I'm planning a 5-day trip to Lisbon with a €900 max budget. Could you take care of finding a central hotel, direct morning flights, and key city passes within budget?&quot;, executeGoWorkflow)" class="text-xs px-3 py-1 rounded-full bg-claude-brandLight text-claude-brand border border-claude-brand/30 hover:bg-claude-brand hover:text-white font-medium transition">
+        <button onclick="autoTypePrompt(&quot;Hey! I'm planning a 5-day trip to Lisbon with a €900 max budget. Could you take care of finding a central hotel, direct morning flights, and key city passes within budget?&quot;, executeGoWorkflow)" class="prompt-chip">
           ✦ Delegate full 5-day Lisbon trip (€900 budget) to Roamly Go
         </button>
       `;
@@ -487,49 +445,33 @@
 
     function executeGoWorkflow() {
       const ws = document.getElementById('workspace');
-      document.getElementById('chip-bar').innerHTML = `<span class="text-[11px] text-claude-muted italic">Agent autonomous optimization active...</span>`;
+      document.getElementById('chip-bar').innerHTML = `<span style="font-size: 11px; color: #6B6A65; font-style: italic;">Agent autonomous optimization active...</span>`;
 
       ws.insertAdjacentHTML('beforeend', `
-        <div id="go-trace-container" class="space-y-2">
-          <div id="go-active-box" class="bg-claude-tool border border-claude-borderDark rounded-xl p-3 space-y-2 font-mono text-[11px]">
-            <div class="text-[10px] uppercase tracking-wider text-claude-brand font-semibold pb-1 border-b border-claude-border flex justify-between items-center">
+        <div id="go-trace-container" style="display: flex; flex-direction: column; gap: 8px;">
+          <div id="go-active-box" style="background: #F4F3EE; border: 1px solid #D6D3C9; border-radius: 12px; padding: 12px; font-family: monospace; font-size: 11px;">
+            <div style="font-size: 10px; text-transform: uppercase; letter-spacing: 0.05em; color: #1B4D3E; font-weight: 600; padding-bottom: 6px; border-bottom: 1px solid #E5E3DC; display: flex; justify-content: space-between; align-items: center;">
               <span>Autonomous Execution Trace</span>
-              <span class="spinner rounded-full border border-claude-brand border-t-transparent" style="width: 10px; height: 10px; min-width: 10px; min-height: 10px;"></span>
+              <span class="spinner" style="width: 10px; height: 10px; border-radius: 50%; border: 1px solid #1B4D3E; border-top-color: transparent;"></span>
             </div>
-            <div id="go-rows" class="space-y-1.5 pt-0.5"></div>
+            <div id="go-rows" style="display: flex; flex-direction: column; gap: 6px; padding-top: 8px;"></div>
           </div>
         </div>
       `);
 
       const rowsContainer = document.getElementById('go-rows');
       const tasks = [
-        {
-          running: "Calibrating 5-day parameters and €900 cap...",
-          done: "Initialized Lisbon tracker (€900 budget ceiling)",
-          cb: activateItineraryPanel
-        },
-        {
-          running: "Scanning Baixa hotels (€450) & eliminating sold-out inventory...",
-          done: "Reserved Hotel Avenida Palace (4.8★, Central — €450)",
-          cb: lockHotelSummary
-        },
-        {
-          running: "Evaluating direct flight inventory (€390) & morning departure slots...",
-          done: "Booked TAP Air Portugal Direct Flight (€390)",
-          cb: lockFlightSummary
-        },
-        {
-          running: "Optimizing remaining €60 reserve for fast-track cultural pass (€50)...",
-          done: "Bundled Lisbon Heritage & Jerónimos Pass (€50)",
-          cb: () => lockAttractionSummary('Lisbon Heritage & Jerónimos Pass')
-        }
+        { running: "Calibrating 5-day parameters and €900 cap...", done: "Initialized Lisbon tracker (€900 budget ceiling)", cb: activateItineraryPanel },
+        { running: "Scanning Baixa hotels (€450) & eliminating sold-out inventory...", done: "Reserved Hotel Avenida Palace (4.8★, Central — €450)", cb: lockHotelSummary },
+        { running: "Evaluating direct flight inventory (€390) & morning departure slots...", done: "Booked TAP Air Portugal Direct Flight (€390)", cb: lockFlightSummary },
+        { running: "Optimizing remaining €60 reserve for fast-track cultural pass (€50)...", done: "Bundled Lisbon Heritage & Jerónimos Pass (€50)", cb: () => lockAttractionSummary('Lisbon Heritage & Jerónimos Pass') }
       ];
 
       tasks.forEach((t, i) => {
         timers.push(setTimeout(() => {
           rowsContainer.insertAdjacentHTML('beforeend', `
-            <div class="flex items-center space-x-2 text-claude-muted">
-              <div id="go-spin-${i}" class="border-2 border-claude-brand border-t-transparent rounded-full spinner shrink-0" style="width: 12px; height: 12px; min-width: 12px; min-height: 12px;"></div>
+            <div class="flex items-center space-x-2" style="display:flex; align-items:center; gap:8px; color:#6B6A65;">
+              <div id="go-spin-${i}" class="spinner" style="width: 12px; height: 12px; border-radius: 50%; border: 2px solid #1B4D3E; border-top-color: transparent; flex-shrink: 0;"></div>
               <span id="go-txt-${i}">${t.running}</span>
             </div>
           `);
@@ -540,14 +482,21 @@
           const spin = document.getElementById(`go-spin-${i}`);
           const txt = document.getElementById(`go-txt-${i}`);
           if (spin && txt) {
-            spin.className = "rounded-full bg-claude-brand text-white flex items-center justify-center text-[9px] font-bold shrink-0";
+            spin.className = "";
             spin.style.width = "14px";
             spin.style.height = "14px";
-            spin.style.minWidth = "14px";
-            spin.style.minHeight = "14px";
+            spin.style.borderRadius = "50%";
+            spin.style.background = "#1B4D3E";
+            spin.style.color = "#FFFFFF";
+            spin.style.display = "flex";
+            spin.style.alignItems = "center";
+            spin.style.justifyContent = "center";
+            spin.style.fontSize = "9px";
+            spin.style.fontWeight = "bold";
             spin.innerHTML = "✓";
             txt.textContent = t.done;
-            txt.className = "text-claude-text font-medium";
+            txt.style.color = "#141413";
+            txt.style.fontWeight = "500";
           }
           if (t.cb) t.cb();
           ws.scrollTop = ws.scrollHeight;
@@ -557,15 +506,15 @@
               const activeBox = document.getElementById('go-active-box');
               if (activeBox) {
                 activeBox.outerHTML = `
-                  <details class="group bg-claude-tool border border-claude-borderDark rounded-xl text-xs font-mono overflow-hidden transition">
-                    <summary class="p-2.5 px-3 flex items-center justify-between cursor-pointer select-none text-[11px] text-claude-muted hover:text-claude-text">
-                      <div class="flex items-center space-x-2">
-                        <span class="rounded-full bg-claude-brand text-white flex items-center justify-center text-[9px] font-bold" style="width: 14px; height: 14px; min-width: 14px; min-height: 14px;">✓</span>
-                        <span class="font-medium text-claude-text">Autonomous execution completed (4 steps)</span>
+                  <details style="background: #F4F3EE; border: 1px solid #D6D3C9; border-radius: 12px; font-family: monospace; font-size: 11px; overflow: hidden;">
+                    <summary style="padding: 10px 12px; display: flex; align-items: center; justify-content: space-between; cursor: pointer; color: #141413; font-weight: 500;">
+                      <div style="display: flex; align-items: center; gap: 8px;">
+                        <span style="width: 14px; height: 14px; border-radius: 50%; background: #1B4D3E; color: #FFFFFF; display: flex; align-items: center; justify-content: center; font-size: 9px; font-weight: bold;">✓</span>
+                        <span>Autonomous execution completed (4 steps)</span>
                       </div>
-                      <span class="text-[10px] text-claude-muted group-open:rotate-180 transition-transform">▼</span>
+                      <span style="font-size: 10px; color: #6B6A65;">▼</span>
                     </summary>
-                    <div class="p-3 pt-1 text-[11px] space-y-1.5 border-t border-claude-border/50 text-claude-muted">
+                    <div style="padding: 10px 12px; border-top: 1px solid #E5E3DC; color: #6B6A65; display: flex; flex-direction: column; gap: 4px;">
                       <p>✓ Lisbon parameter calibration: Completed</p>
                       <p>✓ Hotel Avenida Palace: Verified & allocated (€450)</p>
                       <p>✓ TAP Direct Morning Flight: Routing confirmed (€390)</p>
@@ -578,15 +527,15 @@
               streamAssistantOutput(
                 `I've completed your **5-day Lisbon booking delegation** within the **€900 cap** — reserving **Hotel Avenida Palace (€450)**, booking the **TAP Air Portugal Direct Morning Flight (€390)**, and bundling the **Lisbon Heritage & Jerónimos Pass (€50)** for fast-track museum entry:`,
                 `
-                <div class="bg-white border border-claude-border rounded-xl p-3 mt-1 space-y-1.5 text-xs font-sans card-reveal-1">
-                  <div class="flex justify-between"><span>• <strong>Hotel Avenida Palace</strong> (5 Nights, Central)</span><span class="font-bold text-claude-brand">€450</span></div>
-                  <div class="flex justify-between"><span>• <strong>TAP Air Portugal</strong> (Direct Morning)</span><span class="font-bold text-claude-brand">€390</span></div>
-                  <div class="flex justify-between"><span>• <strong>Lisbon Heritage & Jerónimos Pass</strong> (Fast-Track)</span><span class="font-bold text-claude-brand">€50</span></div>
+                <div style="background: #FFFFFF; border: 1px solid #E5E3DC; border-radius: 12px; padding: 12px; display: flex; flex-direction: column; gap: 6px; font-size: 12px; margin-top: 6px;">
+                  <div style="display: flex; justify-content: space-between;"><span>• <strong>Hotel Avenida Palace</strong> (5 Nights, Central)</span><span style="font-weight: 700; color: #1B4D3E;">€450</span></div>
+                  <div style="display: flex; justify-content: space-between;"><span>• <strong>TAP Air Portugal</strong> (Direct Morning)</span><span style="font-weight: 700; color: #1B4D3E;">€390</span></div>
+                  <div style="display: flex; justify-content: space-between;"><span>• <strong>Lisbon Heritage & Jerónimos Pass</strong> (Fast-Track)</span><span style="font-weight: 700; color: #1B4D3E;">€50</span></div>
                 </div>
-                <p class="mt-2 text-xs text-claude-muted font-sans">Final bundle is locked at <strong>€890 / €900</strong>. Inspect details in your summary panel and click confirm to complete.</p>
+                <p style="font-size: 12px; color: #6B6A65; margin-top: 8px;">Final bundle is locked at <strong>€890 / €900</strong>. Inspect details in your summary panel and click confirm to complete.</p>
                 `,
                 () => {
-                  document.getElementById('chip-bar').innerHTML = `<span class="text-[11px] text-claude-muted italic">Plan verified — review and confirm on right panel.</span>`;
+                  document.getElementById('chip-bar').innerHTML = `<span style="font-size: 11px; color: #6B6A65; font-style: italic;">Plan verified — review and confirm on right panel.</span>`;
                 }
               );
             }, 450));
