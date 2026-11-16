@@ -1,0 +1,629 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Insurly Assist - Conversational Insurance Chatbot</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&family=Source+Serif+4:ital,opsz,wght@0,8..60,400;0,8..60,600;1,8..60,400&display=swap" rel="stylesheet">
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { background-color: #E5E3DC; font-family: 'Inter', system-ui, -apple-system, sans-serif; color: #141413; display: flex; align-items: center; justify-content: center; min-height: 100vh; overflow: hidden; user-select: none; }
+    
+    /* Layout Envelope */
+    .app-canvas { width: 900px; height: 620px; background: #FAF9F5; border-radius: 12px; border: 1px solid #E5E3DC; display: grid; grid-template-columns: 525px 375px; overflow: hidden; box-shadow: 0 20px 25px -5px rgba(0,0,0,0.1); }
+    
+    /* Left Panel */
+    .panel-left { width: 525px; height: 620px; display: flex; flex-direction: column; border-right: 1px solid #E5E3DC; background: #FAF9F5; overflow: hidden; }
+    .panel-header { height: 48px; padding: 10px 16px; border-bottom: 1px solid #E5E3DC; display: flex; align-items: center; justify-content: space-between; flex-shrink: 0; background: #FAF9F5; }
+    .header-brand { display: flex; align-items: center; gap: 10px; }
+    .header-icon-box { width: 28px; height: 28px; border-radius: 8px; background: #E8F0ED; border: 1px solid rgba(27,77,62,0.2); display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+    .header-title { font-family: 'Source Serif 4', Georgia, serif; font-weight: 600; font-size: 15px; color: #141413; }
+    .header-badge { font-size: 10px; padding: 2px 8px; border-radius: 6px; background: #E8F0ED; color: #1B4D3E; font-weight: 500; border: 1px solid rgba(27,77,62,0.2); }
+    .header-session { font-size: 11px; font-family: 'JetBrains Mono', monospace; color: #6B6A65; }
+    
+    /* Workspace */
+    .workspace-scroll { flex: 1; padding: 14px 16px; overflow-y: auto; display: flex; flex-direction: column; gap: 12px; }
+    .claude-prose { font-family: 'Source Serif 4', Georgia, serif; font-size: 13.5px; line-height: 1.5; color: #141413; }
+    .claude-prose strong { font-weight: 600; color: #141413; }
+    
+    .user-bubble-row { display: flex; justify-content: flex-end; width: 100%; }
+    .user-bubble { background: #F0EEE6; border: 1px solid #E5E3DC; color: #141413; font-size: 12px; padding: 8px 14px; border-radius: 16px; max-width: 85%; line-height: 1.45; }
+    
+    /* 2-Column Option Cards */
+    .cards-grid-2 { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; margin-top: 6px; }
+    .card-item { background: #FFFFFF; border: 1px solid #D6D3C9; border-radius: 10px; padding: 12px; display: flex; flex-direction: column; justify-content: space-between; font-size: 11.5px; box-shadow: 0 1px 2px rgba(0,0,0,0.03); transition: opacity 0.2s; }
+    .card-title { font-weight: 700; color: #141413; font-size: 12px; margin-bottom: 2px; }
+    .card-price { font-weight: 700; color: #1B4D3E; font-size: 13.5px; margin: 3px 0 5px; }
+    .card-desc { color: #6B6A65; line-height: 1.4; margin-bottom: 10px; font-size: 11px; }
+    .btn-card-select { width: 100%; padding: 6px 10px; background: #1B4D3E; color: #FFFFFF; border: none; border-radius: 7px; font-size: 11.5px; font-weight: 600; cursor: pointer; transition: all 0.15s; }
+    .btn-card-select:hover:not(:disabled) { background: #143A2F; }
+    .btn-card-select.selected { background: #E8F0ED; color: #1B4D3E; border: 1px solid rgba(27,77,62,0.35); cursor: default; }
+    .btn-card-select.disabled { background: #F0EEE6; color: #A8A29E; border: 1px solid #E5E3DC; cursor: not-allowed; }
+
+    /* Composer Dock */
+    .composer-dock { padding: 8px 16px 12px; background: #FAF9F5; border-top: 1px solid rgba(229,227,220,0.5); flex-shrink: 0; }
+    .chip-container { min-height: 28px; margin-bottom: 8px; display: flex; align-items: center; }
+    .prompt-chip { font-size: 12px; padding: 5px 13px; border-radius: 9999px; background: #E8F0ED; color: #1B4D3E; border: 1px solid rgba(27,77,62,0.3); font-weight: 500; cursor: pointer; transition: all 0.15s; text-align: left; }
+    .prompt-chip:hover { background: #1B4D3E; color: #FFFFFF; }
+    .composer-input-card { background: #FFFFFF; border: 1px solid #D6D3C9; border-radius: 12px; padding: 8px 10px; display: flex; align-items: flex-end; justify-content: space-between; gap: 8px; box-shadow: 0 1px 2px rgba(0,0,0,0.04); }
+    .composer-textarea { flex: 1; border: none; outline: none; resize: none; font-size: 12px; font-family: 'Inter', sans-serif; background: transparent; color: #141413; line-height: 1.4; overflow: hidden; }
+    .composer-textarea::placeholder { color: #6B6A65; }
+    .btn-send { width: 28px; height: 28px; border-radius: 8px; background: #D6D3C9; border: none; color: #FFFFFF; display: flex; align-items: center; justify-content: center; cursor: not-allowed; flex-shrink: 0; transition: all 0.15s; }
+    .btn-send.ready { background: #1B4D3E; cursor: pointer; animation: sendPulse 1.6s infinite; }
+    .btn-send.ready:hover { background: #143A2F; }
+
+    /* Right Panel */
+    .panel-right { width: 375px; height: 620px; display: flex; flex-direction: column; justify-content: space-between; background: #FFFFFF; padding: 16px; flex-shrink: 0; }
+    .right-header { display: flex; align-items: center; justify-content: space-between; padding-bottom: 10px; border-bottom: 1px solid #E5E3DC; margin-bottom: 12px; }
+    .right-header-title { display: flex; align-items: center; gap: 8px; font-family: 'Source Serif 4', serif; font-size: 14px; font-weight: 600; color: #141413; }
+    .status-dot { width: 8px; height: 8px; border-radius: 50%; background: #1B4D3E; }
+    .badge-dest { font-size: 10px; font-family: 'JetBrains Mono', monospace; color: #6B6A65; background: #F0EEE6; padding: 2px 8px; border-radius: 4px; }
+    
+    .empty-state-box { flex: 1; border: 1px dashed #D6D3C9; border-radius: 12px; background: rgba(250,249,245,0.4); display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; padding: 16px; margin: 8px 0; }
+    .empty-icon { width: 28px; height: 28px; border-radius: 50%; background: #F0EEE6; color: #6B6A65; display: flex; align-items: center; justify-content: center; font-size: 12px; margin-bottom: 8px; }
+    
+    .budget-card { background: #FAF9F5; border: 1px solid #E5E3DC; border-radius: 12px; padding: 12px; margin-bottom: 10px; }
+    .budget-meta { display: flex; justify-content: space-between; align-items: baseline; }
+    .budget-bar-track { width: 100%; height: 6px; background: #F0EEE6; border-radius: 9999px; overflow: hidden; border: 1px solid #E5E3DC; margin-top: 6px; }
+    .budget-bar-fill { height: 100%; background: #1B4D3E; width: 0%; transition: width 0.4s ease; }
+    
+    .slots-container { display: flex; flex-direction: column; gap: 8px; }
+    .slot-item { padding: 10px 12px; border-radius: 8px; border: 1px dashed #D6D3C9; background: rgba(250,249,245,0.5); font-size: 11.5px; color: #6B6A65; display: flex; justify-content: space-between; align-items: center; }
+    .slot-item.locked { border: 1px solid rgba(27,77,62,0.3); background: rgba(232,240,237,0.5); }
+    
+    .panel-footer { border-top: 1px solid #E5E3DC; padding-top: 12px; margin-top: 8px; }
+    .btn-confirm { width: 100%; padding: 10px 16px; border-radius: 12px; font-weight: 600; font-size: 12px; color: #FFFFFF; background: #D6D3C9; border: none; cursor: not-allowed; transition: all 0.15s; }
+    .btn-confirm.unlocked { background: #1B4D3E; cursor: pointer; }
+    .btn-confirm.unlocked:hover { background: #143A2F; }
+    .confirmed-banner { padding: 10px; border-radius: 12px; background: #E8F0ED; border: 1px solid rgba(27,77,62,0.3); color: #1B4D3E; font-size: 11.5px; font-weight: 600; text-align: center; }
+
+    @keyframes pulseText { 0%, 100% { opacity: 0.45; } 50% { opacity: 1; } }
+    .thinking-shimmer { animation: pulseText 1.4s infinite ease-in-out; }
+    @keyframes sendPulse { 0%, 100% { box-shadow: 0 0 0 0 rgba(27,77,62,0.45); } 50% { box-shadow: 0 0 0 6px rgba(27,77,62,0); } }
+    .stream-cursor::after { content: '▍'; display: inline-block; margin-left: 2px; color: #1B4D3E; animation: pulseText 0.5s infinite; }
+    
+    .hidden { display: none !important; }
+    ::-webkit-scrollbar { width: 5px; }
+    ::-webkit-scrollbar-thumb { background: #D6D3C9; border-radius: 3px; }
+
+    /* Responsive Mobile Stacked Layout (< 900px) */
+    @media (max-width: 899px) {
+      body { align-items: flex-start; overflow-y: auto; overflow-x: hidden; padding: 8px; min-height: 100vh; }
+      .app-canvas { width: 100%; max-width: 525px; height: auto; display: flex; flex-direction: column; }
+      .panel-left { width: 100%; height: 480px; border-right: none; border-bottom: 1px solid #E5E3DC; }
+      .panel-right { width: 100%; height: auto; }
+      .cards-grid-2 { grid-template-columns: 1fr; }
+      .header-session { font-size: 10px; }
+      .prompt-chip { font-size: 11px; border-radius: 12px; line-height: 1.35; }
+    }
+  </style>
+</head>
+<body>
+
+  <div class="app-canvas">
+    
+    <!-- LEFT PANEL -->
+    <div class="panel-left">
+      <div class="panel-header">
+        <div class="header-brand">
+          <div id="ai-header-icon" class="header-icon-box"></div>
+          <span class="header-title">Insurly 3.7 Assist</span>
+          <span class="header-badge">Conversational</span>
+        </div>
+        <span id="header-context" class="header-session">New Session</span>
+      </div>
+
+      <div id="workspace" class="workspace-scroll"></div>
+
+      <div class="composer-dock">
+        <div id="chip-bar" class="chip-container"></div>
+        <div class="composer-input-card">
+          <textarea id="chat-input" rows="1" readonly placeholder="Click prompt chip above to initialize..." class="composer-textarea"></textarea>
+          <button id="btn-send" disabled class="btn-send">
+            <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M5 10l7-7m0 0l7 7m-7-7v18"></path></svg>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- RIGHT PANEL -->
+    <div class="panel-right">
+      <div style="flex: 1; display: flex; flex-direction: column; overflow: hidden;">
+        <div class="right-header">
+          <div class="right-header-title">
+            <span class="status-dot"></span>
+            <span>Live Policy Summary</span>
+          </div>
+          <span id="artifact-status" class="badge-dest">No policy active</span>
+        </div>
+
+        <div id="summary-empty" class="empty-state-box">
+          <div class="empty-icon">-</div>
+          <p style="font-size: 12px; font-weight: 500; color: #141413;">No Policy Parameters Initialized</p>
+          <p style="font-size: 11px; color: #6B6A65; margin-top: 4px; line-height: 1.4;">
+            Dispatch initial requirements to calibrate policy allocations and CHF 50/month budget constraints.
+          </p>
+        </div>
+
+        <div id="summary-active" class="hidden" style="flex: 1; display: flex; flex-direction: column; gap: 10px;">
+          <div class="budget-card">
+            <div class="budget-meta">
+              <span style="font-size: 11px; font-weight: 500; color: #6B6A65;">Allocated Monthly Cap</span>
+              <div>
+                <span id="budget-current" style="font-size: 16px; font-weight: 700; color: #141413;">CHF 0</span>
+                <span style="font-size: 12px; color: #6B6A65;"> / CHF 50</span>
+              </div>
+            </div>
+            <div class="budget-bar-track">
+              <div id="budget-bar" class="budget-bar-fill"></div>
+            </div>
+          </div>
+
+          <div class="slots-container">
+            <div id="slot-base" class="slot-item"><span>1. Base Life Policy</span><span style="font-family: monospace; font-size: 10px;">Awaiting...</span></div>
+            <div id="slot-rider" class="slot-item"><span>2. Policy Rider / Add-on</span><span style="font-family: monospace; font-size: 10px;">Awaiting...</span></div>
+          </div>
+        </div>
+      </div>
+
+      <div id="summary-footer" class="panel-footer hidden">
+        <div id="confirm-area">
+          <button id="btn-confirm" disabled class="btn-confirm">Review and Confirm Policy (CHF 50/mo)</button>
+          <p style="font-size: 10px; color: #6B6A65; text-align: center; margin-top: 4px;">Locks parameters and logs allocation data to Qualtrics</p>
+        </div>
+        <div id="confirmed-banner" class="confirmed-banner hidden">
+          ✓ Policy Confirmed (CHF 50/mo). Click Next to advance the survey.
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <script>
+    const currentMode = 'assist';
+    let timers = [];
+    let animationFrames = [];
+    let activeTypingInterval = null;
+    let targetPromptText = '';
+    let pendingStepAction = null;
+    let selectedBaseCost = 0;
+    let msgCounter = 0;
+
+    const PROMPT_CHAR_INTERVAL_MS = 10.5;
+    const MODEL_BASE_INTERVAL_MS = 22.0;
+
+    const STEP1_PROMPT_TEXT = "Hey! I just moved to Zurich for my first full-time job after graduating a couple of years ago. I'm 24, don't smoke, and make around 85k CHF a year. A friend told me I should get life insurance, and I'd like to keep it under 50 CHF a month. What kind of options do I have?";
+    const STEP2_PROMPT_TEXT = "Okay got it. Since I still have a bit of budget left under the 50 CHF limit, what extra coverage can I add to round it out?";
+
+    function getInsurlyLogoSVG(pixelSize, uid) {
+      return `
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="${pixelSize}" height="${pixelSize}" style="width:${pixelSize}px; height:${pixelSize}px; display:block; flex-shrink:0;" fill="none">
+          <defs>
+            <linearGradient id="shield-grad-${uid}" x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%" stop-color="#4A856C" />
+              <stop offset="60%" stop-color="#1B4D3E" />
+              <stop offset="100%" stop-color="#0F3528" />
+            </linearGradient>
+          </defs>
+          <path d="M 50 12 L 82 24 C 82 56 68 78 50 88 C 32 78 18 56 18 24 Z" fill="url(#shield-grad-${uid})" />
+          <path d="M 50 20 L 76 30 C 76 56 64 74 50 82 Z" fill="#28604B" opacity="0.35" />
+          <path d="M 46 36 L 54 36 L 54 46 L 64 46 L 64 54 L 54 54 L 54 64 L 46 64 L 46 54 L 36 54 L 36 46 L 46 46 Z" fill="#FAF9F5" />
+        </svg>
+      `;
+    }
+
+    document.getElementById('ai-header-icon').innerHTML = getInsurlyLogoSVG(18, 'header');
+
+    function clearTimers() {
+      if (activeTypingInterval) {
+        clearInterval(activeTypingInterval);
+        activeTypingInterval = null;
+      }
+      timers.forEach(t => { clearTimeout(t); clearInterval(t); });
+      animationFrames.forEach(af => cancelAnimationFrame(af));
+      timers = [];
+      animationFrames = [];
+    }
+
+    function autoResizeTextarea(el) {
+      el.style.height = 'auto';
+      el.style.height = el.scrollHeight + 'px';
+    }
+
+    function resetComposer() {
+      if (activeTypingInterval) {
+        clearInterval(activeTypingInterval);
+        activeTypingInterval = null;
+      }
+      const input = document.getElementById('chat-input');
+      const sendBtn = document.getElementById('btn-send');
+      input.value = '';
+      input.style.height = 'auto';
+      sendBtn.disabled = true;
+      sendBtn.className = "btn-send";
+    }
+
+    function initApp() {
+      clearTimers();
+      pendingStepAction = null;
+      selectedBaseCost = 0;
+
+      document.getElementById('header-context').textContent = 'New Session';
+      document.getElementById('artifact-status').textContent = 'No policy active';
+      document.getElementById('summary-empty').classList.remove('hidden');
+      document.getElementById('summary-active').classList.add('hidden');
+      document.getElementById('summary-footer').classList.add('hidden');
+
+      updateBudget(0);
+      resetSlot('slot-base', '1. Base Life Policy');
+      resetSlot('slot-rider', '2. Policy Rider / Add-on');
+
+      const ws = document.getElementById('workspace');
+      ws.innerHTML = `
+        <div id="empty-greeting" style="height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; padding: 32px 16px;">
+          <div style="width: 40px; height: 40px; border-radius: 12px; background: #E8F0ED; border: 1px solid rgba(27,77,62,0.2); display: flex; align-items: center; justify-content: center; margin-bottom: 10px;">
+            ${getInsurlyLogoSVG(24, 'hero')}
+          </div>
+          <h3 style="font-family: 'Source Serif 4', Georgia, serif; font-size: 16px; font-weight: 600; color: #141413;">What can I help you configure today?</h3>
+          <p style="font-size: 12px; color: #6B6A65; margin-top: 2px;">Define your profile, target coverage, and maximum monthly budget allocation.</p>
+        </div>
+      `;
+
+      resetComposer();
+      renderAssistChip(1);
+    }
+
+    function renderAssistChip(step) {
+      const chipBar = document.getElementById('chip-bar');
+      chipBar.innerHTML = '';
+      if (step === 1) {
+        const btn = document.createElement('button');
+        btn.className = 'prompt-chip';
+        btn.textContent = '✦ 1. Ask about life insurance options under 50 CHF/month';
+        btn.addEventListener('click', () => {
+          autoTypePrompt(STEP1_PROMPT_TEXT, executeAssistStep1);
+        });
+        chipBar.appendChild(btn);
+      } else if (step === 2) {
+        const btn = document.createElement('button');
+        btn.className = 'prompt-chip';
+        btn.textContent = '✦ 2. Ask what extra coverage can be added with the remaining budget';
+        btn.addEventListener('click', () => {
+          autoTypePrompt(STEP2_PROMPT_TEXT, executeAssistStep2);
+        });
+        chipBar.appendChild(btn);
+      } else {
+        chipBar.innerHTML = `<span style="font-size: 11px; color: #6B6A65; font-style: italic;">All allocations complete. Review and confirm on the right panel.</span>`;
+      }
+    }
+
+    function autoTypePrompt(promptText, stepCallback) {
+      if (activeTypingInterval) {
+        clearInterval(activeTypingInterval);
+        activeTypingInterval = null;
+      }
+
+      document.getElementById('chip-bar').innerHTML = `<span style="font-size: 11px; color: #6B6A65;">Click send arrow or press Enter to dispatch →</span>`;
+      const input = document.getElementById('chat-input');
+      const sendBtn = document.getElementById('btn-send');
+      
+      input.value = '';
+      input.style.height = 'auto';
+      targetPromptText = promptText;
+      pendingStepAction = stepCallback;
+
+      sendBtn.disabled = false;
+      sendBtn.className = "btn-send ready";
+
+      let i = 0;
+      activeTypingInterval = setInterval(() => {
+        input.value += promptText.charAt(i);
+        autoResizeTextarea(input);
+        i++;
+        if (i >= promptText.length) {
+          clearInterval(activeTypingInterval);
+          activeTypingInterval = null;
+        }
+      }, PROMPT_CHAR_INTERVAL_MS);
+    }
+
+    function submitPreparedPrompt() {
+      if (!pendingStepAction) return;
+
+      if (activeTypingInterval) {
+        clearInterval(activeTypingInterval);
+        activeTypingInterval = null;
+      }
+
+      const fn = pendingStepAction;
+      pendingStepAction = null;
+
+      const textToSend = targetPromptText || document.getElementById('chat-input').value;
+      resetComposer();
+      document.getElementById('chip-bar').innerHTML = '';
+      appendUserBubble(textToSend);
+      fn();
+    }
+
+    document.getElementById('btn-send').addEventListener('click', submitPreparedPrompt);
+
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' && pendingStepAction) {
+        e.preventDefault();
+        submitPreparedPrompt();
+      }
+    });
+
+    function appendUserBubble(text) {
+      const greeting = document.getElementById('empty-greeting');
+      if (greeting) greeting.remove();
+      const ws = document.getElementById('workspace');
+      ws.insertAdjacentHTML('beforeend', `
+        <div class="user-bubble-row">
+          <div class="user-bubble">${text}</div>
+        </div>
+      `);
+      ws.scrollTop = ws.scrollHeight;
+    }
+
+    function showEphemeralThinking(label) {
+      const ws = document.getElementById('workspace');
+      const id = 'think-' + (++msgCounter);
+      ws.insertAdjacentHTML('beforeend', `
+        <div id="${id}" class="thinking-shimmer" style="display:flex; align-items:center; gap:6px; font-size:12px; color:#6B6A65; font-family:'Source Serif 4', serif; font-style:italic; padding:4px 0;">
+          <span style="color:#1B4D3E; font-style:normal;">✦</span>
+          <span>${label}</span>
+        </div>
+      `);
+      ws.scrollTop = ws.scrollHeight;
+      return id;
+    }
+
+    function resetSlot(id, label) {
+      const el = document.getElementById(id);
+      el.className = "slot-item";
+      el.innerHTML = `<span>${label}</span><span style="font-family: monospace; font-size: 10px;">Awaiting...</span>`;
+    }
+
+    function activateSummaryPanel() {
+      document.getElementById('header-context').textContent = '24yo • Zurich • Max CHF 50';
+      document.getElementById('artifact-status').textContent = 'CH Pillar 3a • Active';
+      document.getElementById('summary-empty').classList.add('hidden');
+      document.getElementById('summary-active').classList.remove('hidden');
+      document.getElementById('summary-footer').classList.remove('hidden');
+    }
+
+    function updateBudget(amount) {
+      document.getElementById('budget-current').textContent = `CHF ${amount}`;
+      document.getElementById('budget-bar').style.width = `${Math.min(100, Math.round((amount / 50) * 100))}%`;
+    }
+
+    function formatPartialMarkdown(raw) {
+      return raw.replace(/\*\*(.*?)\*\*/g, '<strong style="font-weight:600; color:#141413;">$1</strong>');
+    }
+
+    function streamAssistantOutput(markdownText, extraDOMBuilder = null, onComplete = null) {
+      const ws = document.getElementById('workspace');
+      const msgId = 'msg-' + (++msgCounter);
+      ws.insertAdjacentHTML('beforeend', `
+        <div id="${msgId}" style="display: flex; flex-direction: column; gap: 8px;">
+          <div id="${msgId}-prose" class="claude-prose stream-cursor"></div>
+          <div id="${msgId}-extra" class="hidden"></div>
+        </div>
+      `);
+
+      const proseEl = document.getElementById(`${msgId}-prose`);
+      const extraEl = document.getElementById(`${msgId}-extra`);
+      const tokens = markdownText.split(/(?=\s)/);
+      let idx = 0;
+      let accumulated = '';
+      let lastTime = performance.now();
+      let delayUntilNext = MODEL_BASE_INTERVAL_MS;
+
+      function streamFrame(now) {
+        const elapsed = now - lastTime;
+        if (elapsed >= delayUntilNext) {
+          lastTime = now;
+          const currentToken = tokens[idx];
+          accumulated += currentToken;
+          proseEl.innerHTML = formatPartialMarkdown(accumulated);
+          ws.scrollTop = ws.scrollHeight;
+          idx++;
+
+          if (currentToken.endsWith('.') || currentToken.endsWith(':')) {
+            delayUntilNext = MODEL_BASE_INTERVAL_MS * 1.6;
+          } else {
+            delayUntilNext = MODEL_BASE_INTERVAL_MS;
+          }
+
+          if (idx >= tokens.length) {
+            proseEl.classList.remove('stream-cursor');
+            if (extraDOMBuilder) {
+              extraDOMBuilder(extraEl);
+              extraEl.classList.remove('hidden');
+              ws.scrollTop = ws.scrollHeight;
+            }
+            if (onComplete) onComplete();
+            return;
+          }
+        }
+        animationFrames.push(requestAnimationFrame(streamFrame));
+      }
+      animationFrames.push(requestAnimationFrame(streamFrame));
+    }
+
+    // STEP 1: 2 Base Policies
+    function executeAssistStep1() {
+      activateSummaryPanel();
+      const thinkId = showEphemeralThinking('Calibrating Zurich non-smoker rates & Pillar 3a tax limits...');
+
+      timers.push(setTimeout(() => {
+        const thinkEl = document.getElementById(thinkId);
+        if (thinkEl) thinkEl.remove();
+
+        streamAssistantOutput(
+          `Based on your profile (**24yo, full-time in Zurich, CHF 85k salary, non-smoker**), here are **2 Swiss Pillar 3a base life insurance options** within your **CHF 50/month cap**. Please select one to continue:`,
+          (container) => {
+            container.innerHTML = `
+              <div class="cards-grid-2">
+                <div class="card-item" id="card-base-1">
+                  <div>
+                    <div class="card-title">Option 1: Comprehensive Risk</div>
+                    <div class="card-price">CHF 36 / mo</div>
+                    <p class="card-desc"><strong>CHF 250,000</strong> constant death payout until age 65 + full Pillar 3a tax deduction. Leaves CHF 14 for riders.</p>
+                  </div>
+                  <button type="button" id="btn-base-1" class="btn-card-select">Select Option 1 (CHF 36)</button>
+                </div>
+
+                <div class="card-item" id="card-base-2">
+                  <div>
+                    <div class="card-title">Option 2: Decreasing Term</div>
+                    <div class="card-price">CHF 32 / mo</div>
+                    <p class="card-desc"><strong>CHF 250,000</strong> initial cover decreasing annually until age 65. Leaves CHF 18 for riders.</p>
+                  </div>
+                  <button type="button" id="btn-base-2" class="btn-card-select">Select Option 2 (CHF 32)</button>
+                </div>
+              </div>
+            `;
+
+            document.getElementById('btn-base-1').addEventListener('click', () => {
+              selectBasePolicy(1, 'Option 1: Comprehensive Risk', 'CHF 250,000 Constant • Pillar 3a', 36);
+            });
+            document.getElementById('btn-base-2').addEventListener('click', () => {
+              selectBasePolicy(2, 'Option 2: Decreasing Term', 'CHF 250,000 Decreasing • Pillar 3a', 32);
+            });
+          }
+        );
+      }, 1100));
+    }
+
+    function selectBasePolicy(optNum, title, subtitle, cost) {
+      selectedBaseCost = cost;
+      
+      [1, 2].forEach(n => {
+        const btn = document.getElementById(`btn-base-${n}`);
+        const card = document.getElementById(`card-base-${n}`);
+        if (btn) {
+          btn.disabled = true;
+          if (n === optNum) {
+            btn.className = "btn-card-select selected";
+            btn.textContent = `✓ Selected (CHF ${cost})`;
+          } else {
+            btn.className = "btn-card-select disabled";
+            btn.textContent = "Unselected";
+            if (card) card.style.opacity = '0.55';
+          }
+        }
+      });
+
+      const el = document.getElementById('slot-base');
+      el.className = "slot-item locked";
+      el.innerHTML = `
+        <div>
+          <p style="font-weight: 600; color: #141413;">${title}</p>
+          <p style="font-size: 10px; color: #6B6A65;">${subtitle}</p>
+        </div>
+        <span style="font-weight: 700; color: #1B4D3E; font-size: 12px;">CHF ${cost}/mo</span>
+      `;
+      updateBudget(cost);
+      renderAssistChip(2);
+    }
+
+    // STEP 2: 2 Add-on Riders reaching exact 50 CHF
+    function executeAssistStep2() {
+      const riderCost = 50 - selectedBaseCost;
+      const thinkId = showEphemeralThinking(`Filtering compatible add-on riders for remaining CHF ${riderCost}/mo headroom...`);
+
+      timers.push(setTimeout(() => {
+        const thinkEl = document.getElementById(thinkId);
+        if (thinkEl) thinkEl.remove();
+
+        streamAssistantOutput(
+          `With **CHF ${riderCost}/month remaining** under your cap, here are **2 modular riders** priced at **+CHF ${riderCost}/mo** each to reach **CHF 50/month** exactly. Please select one:`,
+          (container) => {
+            container.innerHTML = `
+              <div class="cards-grid-2">
+                <div class="card-item" id="card-rider-1">
+                  <div>
+                    <div class="card-title">Rider A: Disability Waiver</div>
+                    <div class="card-price">+CHF ${riderCost} / mo</div>
+                    <p class="card-desc"><strong>3-Mo Exemption</strong> • Waives all monthly premiums if illness or burnout prevents you from working.</p>
+                  </div>
+                  <button type="button" id="btn-rider-1" class="btn-card-select">Select Rider A (+CHF ${riderCost})</button>
+                </div>
+
+                <div class="card-item" id="card-rider-2">
+                  <div>
+                    <div class="card-title">Rider B: Accidental Double</div>
+                    <div class="card-price">+CHF ${riderCost} / mo</div>
+                    <p class="card-desc"><strong>2x Accidental Payout</strong> • Doubles the lump-sum payout to CHF 500,000 in case of accidental death.</p>
+                  </div>
+                  <button type="button" id="btn-rider-2" class="btn-card-select">Select Rider B (+CHF ${riderCost})</button>
+                </div>
+              </div>
+            `;
+
+            document.getElementById('btn-rider-1').addEventListener('click', () => {
+              selectRider(1, 'Rider A: Disability Premium Waiver', '3-Mo Exemption • Illness & Burnout', riderCost);
+            });
+            document.getElementById('btn-rider-2').addEventListener('click', () => {
+              selectRider(2, 'Rider B: Accidental Double Indemnity', '2x Payout • Accidental Death', riderCost);
+            });
+          }
+        );
+      }, 1000));
+    }
+
+    function selectRider(optNum, title, subtitle, cost) {
+      [1, 2].forEach(n => {
+        const btn = document.getElementById(`btn-rider-${n}`);
+        const card = document.getElementById(`card-rider-${n}`);
+        if (btn) {
+          btn.disabled = true;
+          if (n === optNum) {
+            btn.className = "btn-card-select selected";
+            btn.textContent = `✓ Selected (+CHF ${cost})`;
+          } else {
+            btn.className = "btn-card-select disabled";
+            btn.textContent = "Unselected";
+            if (card) card.style.opacity = '0.55';
+          }
+        }
+      });
+
+      const el = document.getElementById('slot-rider');
+      el.className = "slot-item locked";
+      el.innerHTML = `
+        <div>
+          <p style="font-weight: 600; color: #141413;">${title}</p>
+          <p style="font-size: 10px; color: #6B6A65;">${subtitle}</p>
+        </div>
+        <span style="font-weight: 700; color: #1B4D3E; font-size: 12px;">+CHF ${cost}/mo</span>
+      `;
+      updateBudget(50);
+
+      const btnConfirm = document.getElementById('btn-confirm');
+      btnConfirm.disabled = false;
+      btnConfirm.className = "btn-confirm unlocked";
+
+      renderAssistChip(3);
+      streamAssistantOutput(`Your policy is now locked at **CHF 50 / CHF 50 per month**. Please review your configuration in the right-hand summary panel and click confirm to complete.`);
+    }
+
+    document.getElementById('btn-confirm').addEventListener('click', () => {
+      document.getElementById('confirm-area').classList.add('hidden');
+      document.getElementById('confirmed-banner').classList.remove('hidden');
+
+      window.parent.postMessage({
+        type: "INSURLY_COMPLETE",
+        mode: currentMode,
+        total: 50
+      }, "*");
+    });
+
+    initApp();
+  </script>
+</body>
+</html>
